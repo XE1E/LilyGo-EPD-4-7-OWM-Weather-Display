@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather Station</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #3b82f6;
+      --primary-dark: #2563eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --bg: #0f172a;
+      --bg-card: #1e293b;
+      --bg-input: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --border: #475569;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      padding: 20px 0;
+      margin-bottom: 20px;
+    }
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    header h1::before {
+      content: "☀️";
+    }
+    .status {
+      font-size: 0.8rem;
+      color: var(--success);
+      margin-top: 8px;
+    }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .tab {
+      flex: 1;
+      min-width: 80px;
+      padding: 12px 8px;
+      background: var(--bg-card);
+      border: none;
+      border-radius: 8px 8px 0 0;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .tab:hover { background: var(--bg-input); }
+    .tab.active {
+      background: var(--primary);
+      color: white;
+    }
+    .panel {
+      display: none;
+      background: var(--bg-card);
+      border-radius: 0 0 12px 12px;
+      padding: 20px;
+      animation: fadeIn 0.3s;
+    }
+    .panel.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 480px) {
+      .form-row { grid-template-columns: 1fr; }
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    input, select {
+      width: 100%;
+      padding: 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    input::placeholder { color: var(--text-muted); }
+    select { cursor: pointer; }
+    select option { background: var(--bg-card); }
+    .hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .card {
+      background: var(--bg-input);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--primary);
+    }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    button:active { transform: scale(0.98); }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; opacity: 0.8; }
+    .btn-danger:hover { opacity: 1; }
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+    .wifi-network {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .wifi-network:last-child { margin-bottom: 0; }
+    .network-header {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Weather Station</h1>
+      <div class="status">● Configuracion</div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('wifi')">WiFi</button>
+      <button class="tab" onclick="showTab('weather')">Clima</button>
+      <button class="tab" onclick="showTab('display')">Display</button>
+      <button class="tab" onclick="showTab('system')">Sistema</button>
+    </div>
+
+    <form id="configForm" action="/save" method="POST">
+      <!-- WiFi Tab -->
+      <div id="wifi" class="panel active">
+        <div class="wifi-network">
+          <div class="network-header">Red Principal</div>
+          <div class="form-group">
+            <label>SSID</label>
+            <input type="text" name="ssid1" value="MiRedWiFi" placeholder="Nombre de red" maxlength="32">
+          </div>
+          <div class="form-group">
+            <label>Contrasena</label>
+            <input type="password" name="pass1" value="password123" placeholder="••••••••" maxlength="64">
+          </div>
+        </div>
+
+        <div class="wifi-network">
+          <div class="network-header">Red Secundaria (opcional)</div>
+          <div class="form-group">
+            <label>SSID</label>
+            <input type="text" name="ssid2" value="" placeholder="Nombre de red" maxlength="32">
+          </div>
+          <div class="form-group">
+            <label>Contrasena</label>
+            <input type="password" name="pass2" value="" placeholder="••••••••" maxlength="64">
+          </div>
+        </div>
+
+        <div class="wifi-network">
+          <div class="network-header">Red Terciaria (opcional)</div>
+          <div class="form-group">
+            <label>SSID</label>
+            <input type="text" name="ssid3" value="" placeholder="Nombre de red" maxlength="32">
+          </div>
+          <div class="form-group">
+            <label>Contrasena</label>
+            <input type="password" name="pass3" value="" placeholder="••••••••" maxlength="64">
+          </div>
+        </div>
+      </div>
+
+      <!-- Weather Tab -->
+      <div id="weather" class="panel">
+        <div class="card">
+          <div class="card-title">OpenWeatherMap API</div>
+          <div class="form-group">
+            <label>API Key</label>
+            <input type="text" name="apikey" value="abc123def456" placeholder="Tu API key" maxlength="64">
+            <div class="hint">Obten tu key gratis en openweathermap.org</div>
+          </div>
+          <div class="form-group">
+            <label>Dias de Pronostico</label>
+            <select name="forecast_days">
+              <option value="3" selected>3 Dias</option>
+              <option value="5">5 Dias</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Ubicacion</div>
+          <div class="form-group">
+            <label>Ciudad</label>
+            <input type="text" name="city" value="Ciudad de Mexico" placeholder="Nombre de ciudad" maxlength="32">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Latitud</label>
+              <input type="text" name="lat" value="19.4326" placeholder="19.4326" maxlength="15">
+            </div>
+            <div class="form-group">
+              <label>Longitud</label>
+              <input type="text" name="lon" value="-99.1332" placeholder="-99.1332" maxlength="15">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Hemisferio</label>
+            <select name="hemisphere">
+              <option value="north" selected>Norte</option>
+              <option value="south">Sur</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Display Tab -->
+      <div id="display" class="panel">
+        <div class="card">
+          <div class="card-title">Preferencias de Pantalla</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Idioma</label>
+              <select name="lang">
+                <option value="ES" selected>Espanol</option>
+                <option value="EN">English</option>
+                <option value="FR">Francais</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Unidades</label>
+              <select name="units">
+                <option value="M" selected>Metrico (°C)</option>
+                <option value="I">Imperial (°F)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Zona Horaria</div>
+          <div class="form-group">
+            <label>Timezone</label>
+            <input type="text" name="tz" value="CST6" placeholder="CST6" maxlength="31">
+            <div class="hint">Ej: CST6, EST5EDT, GMT0, CET-1</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>GMT Offset (seg)</label>
+              <input type="number" name="gmt" value="-21600">
+              <div class="hint">-21600 para CST</div>
+            </div>
+            <div class="form-group">
+              <label>DST Offset (seg)</label>
+              <input type="number" name="dst" value="0">
+              <div class="hint">0 o 3600</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Tab -->
+      <div id="system" class="panel">
+        <div class="card">
+          <div class="card-title">Actualizacion de Datos</div>
+          <div class="form-group">
+            <label>Intervalo de Actualizacion (min)</label>
+            <input type="number" name="update_interval" value="30" min="5" max="120">
+            <div class="hint">Cada cuanto actualizar el clima (5-120 min)</div>
+          </div>
+          <div class="form-group">
+            <label>Tiempo antes de Sleep (seg)</label>
+            <input type="number" name="sleep_timeout" value="30" min="10" max="300">
+            <div class="hint">Tiempo de inactividad antes de dormir (10-300 seg)</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="btn-group">
+          <button type="button" class="btn-primary" onclick="alert('Configuracion guardada!')">Guardar Configuracion</button>
+          <button type="button" class="btn-success" onclick="alert('Guardando y reiniciando...')">Guardar y Reiniciar</button>
+          <button type="button" class="btn-danger" onclick="confirm('Restablecer a valores de fabrica?')">Restablecer Fabrica</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function showTab(tabId) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.querySelector(`[onclick="showTab('${tabId}')"]`).classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+  </script>
+</body>
+</html>

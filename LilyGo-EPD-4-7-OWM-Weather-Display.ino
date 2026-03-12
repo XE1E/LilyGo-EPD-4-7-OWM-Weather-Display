@@ -142,7 +142,11 @@ void BeginSleep() {
     return;
   }
 
-  epd_poweroff_all();
+  // Stop web server and WiFi before sleep
+  stopWebServer();
+  StopWiFi();
+
+  displayPowerOff();
   UpdateLocalTime();
   SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)) + Delta; //Some ESP32 have a RTC that is too fast to maintain accurate time, so add an offset
   esp_sleep_enable_timer_wakeup(SleepTimer * 1000000LL); // in Secs, 1000000LL converts to Secs as unit = 1uSec
@@ -282,9 +286,41 @@ void InitialiseSystem() {
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
 }
 
-// Refresh screen based on current state
+// Track if display is powered on for navigation
+bool displayPoweredOn = false;
+
+// Fast screen refresh - no epd_clear(), just overwrite framebuffer
+void refreshScreenFast() {
+  if (!displayPoweredOn) {
+    epd_poweron();
+    displayPoweredOn = true;
+  }
+
+  // Clear framebuffer only (fast) - no physical clear
+  memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
+
+  switch (currentScreen) {
+    case SCREEN_MAIN:
+      DisplayWeather();
+      break;
+    case SCREEN_CURRENT_DETAIL:
+      DisplayCurrentDetailScreen();
+      break;
+    case SCREEN_FORECAST:
+      DisplayForecastScreen();
+      break;
+    case SCREEN_GRAPHS:
+      DisplayGraphsScreen();
+      break;
+  }
+
+  edp_update();
+}
+
+// Full screen refresh with physical clear (use sparingly)
 void refreshScreen() {
   epd_poweron();
+  displayPoweredOn = true;
   epd_clear();
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
 
@@ -304,7 +340,14 @@ void refreshScreen() {
   }
 
   edp_update();
-  epd_poweroff_all();
+}
+
+// Power off display
+void displayPowerOff() {
+  if (displayPoweredOn) {
+    epd_poweroff_all();
+    displayPoweredOn = false;
+  }
 }
 
 // Handle touch input and screen navigation
@@ -326,7 +369,7 @@ void handleTouchNavigation() {
         navigationModeActive = false;
       }
 
-      refreshScreen();
+      refreshScreen();  // Full refresh for navigation
     }
   }
 
@@ -335,7 +378,8 @@ void handleTouchNavigation() {
     Serial.println("30 second timeout - going to sleep");
     currentScreen = SCREEN_MAIN;
     navigationModeActive = false;
-    refreshScreen();
+    refreshScreen();  // Full refresh before sleep
+    displayPowerOff();
     delay(500);
     BeginSleep();
   }
@@ -365,14 +409,14 @@ void loop() {
           Attempts++;
         }
         if (RxWeather && RxForecast) {
-          StopWiFi();
           currentScreen = SCREEN_MAIN;
           epd_poweron();
+          displayPoweredOn = true;
           epd_clear();
           memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
           DisplayWeather();
           edp_update();
-          epd_poweroff_all();
+          // Keep display on for navigation
           lastTouchTime = millis();
           navigationModeActive = true;
           return;
@@ -388,6 +432,9 @@ void loop() {
     }
     return;
   }
+
+  // Handle web server requests for configuration
+  handleWebServer();
 
   // Always handle touch navigation
   handleTouchNavigation();
@@ -472,6 +519,9 @@ void setup() {
   loadConfig();
   applyStoredConfig();
 
+  // Initialize language based on config
+  initLanguage(config.language);
+
   // Check for forced AP mode (hardcoded flag or stored preference)
   if (FORCE_AP_MODE || forceAPMode) {
     Serial.println("Entering AP mode (forced via flag)...");
@@ -501,16 +551,21 @@ void setup() {
       }
       Serial.println("Received all weather data...");
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
-        StopWiFi();         // Reduces power consumption
+        // Start web server for configuration (WiFi stays on)
+        startWebServer();
+
         currentScreen = SCREEN_MAIN;
         epd_poweron();      // Switch on EPD display
+        displayPoweredOn = true;
         epd_clear();        // Clear the screen
         DisplayWeather();   // Display the weather data
         edp_update();       // Update the display to show the information
-        epd_poweroff_all(); // Switch off all power to EPD
+        // Keep display on for touch navigation
 
         // Initialize touch time and let loop() handle navigation
         Serial.println("Touch navigation active - 30 second timeout");
+        Serial.print("Config page: http://");
+        Serial.println(WiFi.localIP());
         lastTouchTime = millis();
         navigationModeActive = true;  // Enable touch handling in loop()
         return;  // Go to loop() for continuous touch handling
@@ -705,7 +760,9 @@ void DisplayWeather() {                          // 4.7" e-paper display is 960x
 
 void DisplayGeneralInfoSection() {
   setFont(OpenSans14B);  //estaba 10B
-  drawString(20, 13, City, LEFT); //estaba 5,2
+  // Draw city twice for darker/blacker text
+  drawString(20, 13, City, LEFT);
+  drawString(20, 13, City, LEFT);
   setFont(OpenSans10B); //estaba 8B
   drawString(300, 15, Date_str + "  @ " + Time_str, LEFT); // estaba 300,2
 }
@@ -1479,16 +1536,20 @@ void edp_update() {
 // Screen 2: Current conditions detail
 void DisplayCurrentDetailScreen() {
 
+  // Date/Time same format and position as main screen
+  setFont(OpenSans10B);
+  drawString(300, 15, Date_str + "  @ " + Time_str, LEFT);
+
   // Title
-  setFont(OpenSans14B);
-  drawString(SCREEN_WIDTH / 2, 20, TXT_CURRENT_CONDITIONS, CENTER);
-  drawFastHLine(150, 45, SCREEN_WIDTH - 300, Grey);
+  setFont(OpenSans18B);
+  drawString(SCREEN_WIDTH / 2, 50, TXT_CURRENT_CONDITIONS, CENTER);
+  drawFastHLine(150, 85, SCREEN_WIDTH - 300, Grey);
 
   String tempUnit = (Units == "M") ? "C" : "F";
 
   // === TOP SECTION: Temperature, Pressure, Humidity ===
   int col1X = 160, col2X = 480, col3X = 800;
-  int topY = 80;
+  int topY = 110;
 
   // Temperature
   setFont(OpenSans24B);
@@ -1507,24 +1568,24 @@ void DisplayCurrentDetailScreen() {
   setFont(OpenSans24B);
   drawString(col3X, topY, String(WxConditions[0].Humidity, 0) + "%", CENTER);
   setFont(OpenSans10B);
-  drawString(col3X, topY + 45, "Humedad", CENTER);
+  drawString(col3X, topY + 45, TXT_HUMIDITY, CENTER);
 
   // === MIDDLE SECTION: Weather Icon + Details ===
-  drawFastHLine(50, 160, SCREEN_WIDTH - 100, Grey);
+  drawFastHLine(50, 190, SCREEN_WIDTH - 100, Grey);
 
   // Left: Weather icon
-  DisplayConditionsSection(200, 270, WxConditions[0].Icon, LargeIcon);
+  DisplayConditionsSection(200, 300, WxConditions[0].Icon, LargeIcon);
   setFont(OpenSans12B);
-  drawString(200, 360, TitleCase(WxConditions[0].Forecast0), CENTER);
+  drawString(200, 390, TitleCase(WxConditions[0].Forecast0), CENTER);
 
   // Right: Visibility, Wind Direction, Clouds
   int rightColLabel = 550, rightColValue = 780;
-  int row1Y = 200, row2Y = 270, row3Y = 340;
+  int row1Y = 230, row2Y = 300, row3Y = 370;
 
   setFont(OpenSans12B);
-  drawString(rightColLabel, row1Y, "Visibilidad:", RIGHT);
-  drawString(rightColLabel, row2Y, "Direccion Viento:", RIGHT);
-  drawString(rightColLabel, row3Y, "Nubosidad:", RIGHT);
+  drawString(rightColLabel, row1Y, TXT_VISIBILITY + ":", RIGHT);
+  drawString(rightColLabel, row2Y, TXT_WIND_DIR + ":", RIGHT);
+  drawString(rightColLabel, row3Y, TXT_CLOUDINESS + ":", RIGHT);
 
   setFont(OpenSans18B);
   float visKm = WxConditions[0].Visibility / 1000.0;
@@ -1533,9 +1594,9 @@ void DisplayCurrentDetailScreen() {
   drawString(rightColValue, row3Y - 5, String(WxConditions[0].Cloudcover) + "%", CENTER);
 
   // === BOTTOM SECTION: Sunrise, Sunset, Rain Probability ===
-  drawFastHLine(50, 400, SCREEN_WIDTH - 100, Grey);
+  drawFastHLine(50, 420, SCREEN_WIDTH - 100, Grey);
 
-  int bottomY = 460;
+  int bottomY = 470;
   int bot1X = 160, bot2X = 480, bot3X = 800;
 
   setFont(OpenSans18B);
@@ -1546,21 +1607,25 @@ void DisplayCurrentDetailScreen() {
   setFont(OpenSans10B);
   drawString(bot1X, bottomY + 35, TXT_SUNRISE, CENTER);
   drawString(bot2X, bottomY + 35, TXT_SUNSET, CENTER);
-  drawString(bot3X, bottomY + 35, "Prob. Lluvia", CENTER);
+  drawString(bot3X, bottomY + 35, TXT_RAIN_PROB, CENTER);
 }
 
 // Screen 3: Extended forecast
 void DisplayForecastScreen() {
+  // Date/Time same format and position as main screen
+  setFont(OpenSans10B);
+  drawString(300, 15, Date_str + "  @ " + Time_str, LEFT);
+
   // Title
-  setFont(OpenSans14B);
-  drawString(SCREEN_WIDTH / 2, 25, "Pronostico", CENTER);
-  drawFastHLine(150, 50, SCREEN_WIDTH - 300, Grey);
+  setFont(OpenSans18B);
+  drawString(SCREEN_WIDTH / 2, 50, TXT_5DAY_FORECAST, CENTER);
+  drawFastHLine(150, 85, SCREEN_WIDTH - 300, Grey);
 
   // === SECTION 1: Hourly forecast - 8 columns ===
   setFont(OpenSans12B);
-  drawString(SCREEN_WIDTH / 2, 75, TXT_NEXT_24H, CENTER);
+  drawString(SCREEN_WIDTH / 2, 100, TXT_NEXT_24H, CENTER);
 
-  int hourlyY = 105;
+  int hourlyY = 130;
   int hourlyWidth = SCREEN_WIDTH / 8;  // 120 pixels each
   for (int i = 0; i < min(8, max_readings); i++) {
     int xPos = hourlyWidth / 2 + i * hourlyWidth;
@@ -1569,20 +1634,20 @@ void DisplayForecastScreen() {
     String timeStr = ConvertUnixTime(WxForecast[i].Dt + WxConditions[0].Timezone).substring(0, 5);
     drawString(xPos, hourlyY, timeStr, CENTER);
 
-    DisplayConditionsSection(xPos, hourlyY + 50, WxForecast[i].Icon, SmallIcon);
+    DisplayConditionsSection(xPos, hourlyY + 65, WxForecast[i].Icon, SmallIcon);
 
     setFont(OpenSans10B);
-    drawString(xPos, hourlyY + 90, String(WxForecast[i].High, 0) + "/" + String(WxForecast[i].Low, 0), CENTER);
+    drawString(xPos, hourlyY + 105, String(WxForecast[i].High, 0) + "/" + String(WxForecast[i].Low, 0), CENTER);
   }
 
   // Divider
-  drawFastHLine(50, 230, SCREEN_WIDTH - 100, Grey);
+  drawFastHLine(50, 260, SCREEN_WIDTH - 100, Grey);
 
   // === SECTION 2: 5-day forecast - 5 columns ===
   setFont(OpenSans12B);
-  drawString(SCREEN_WIDTH / 2, 255, TXT_5DAY_OUTLOOK, CENTER);
+  drawString(SCREEN_WIDTH / 2, 285, TXT_5DAY_OUTLOOK, CENTER);
 
-  int dailyY = 290;
+  int dailyY = 320;
   int dailyWidth = SCREEN_WIDTH / 5;  // 192 pixels each
 
   for (int day = 0; day < 5; day++) {
@@ -1626,8 +1691,13 @@ void DisplayForecastScreen() {
 
 // Screen 4: Expanded graphs
 void DisplayGraphsScreen() {
-  setFont(OpenSans14B);
-  drawString(SCREEN_WIDTH / 2, 25, "Historial del clima", CENTER);
+  // Date/Time same format and position as main screen
+  setFont(OpenSans10B);
+  drawString(300, 15, Date_str + "  @ " + Time_str, LEFT);
+
+  // Title
+  setFont(OpenSans18B);
+  drawString(SCREEN_WIDTH / 2, 50, TXT_WEATHER_TRENDS, CENTER);
 
   // Prepare data
   for (int r = 0; r < max_readings; r++) {
@@ -1651,7 +1721,7 @@ void DisplayGraphsScreen() {
   int totalH = gheight * 2 + vgap; // 335
   int gx1 = (SCREEN_WIDTH - totalW) / 2;  // 130
   int gx2 = gx1 + gwidth + hgap;          // 510
-  int gy1 = 55 + (SCREEN_HEIGHT - 55 - totalH) / 2 - 15;  // centered below title, raised 15px
+  int gy1 = 75 + (SCREEN_HEIGHT - 75 - totalH) / 2;  // centered below title
   int gy2 = gy1 + gheight + vgap;
 
   // Temperature - top left
