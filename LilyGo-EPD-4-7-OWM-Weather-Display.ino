@@ -77,7 +77,7 @@ String  Time_str = "--:--:--";
 String  Date_str = "-- --- ----";
 int     wifi_signal, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0, EventCnt = 0, vref = 1100;
 //################ PROGRAM VARIABLES and OBJECTS ##########################################
-#define max_readings 24 // Limited to 3-days here, but could go to 5-days = 40  //estaba 24
+#define max_readings 40 // 5-day forecast (8 readings per day x 5 days)
 
 Forecast_record_type  WxConditions[1];
 Forecast_record_type  WxForecast[max_readings];
@@ -109,10 +109,37 @@ const bool FORCE_AP_MODE = false;  // Set to true to force AP mode on next boot
 #include "opensans18b.h"
 #include "opensans24b.h"
 
+// Touch navigation (screen functions defined later in this file)
+#include "touch_handler.h"
+
+// Forward declarations for screen functions
+void DisplayCurrentDetailScreen();
+void DisplayForecastScreen();
+void DisplayGraphsScreen();
+void DisplayWeather();
+void DisplayConditionsSection(int x, int y, String IconName, bool IconSize);
+String WindDegToOrdinalDirection(float winddirection);
+String TitleCase(String text);
+String ConvertUnixTime(int unix_time);
+void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode);
+float SumOfPrecip(float DataArray[], int readings);
+void drawString(int x, int y, String text, alignment align);
+void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color);
+void setFont(GFXfont const &font);
+void edp_update();
+
 GFXfont  currentFont;
 uint8_t *framebuffer;
 
 void BeginSleep() {
+  // Don't sleep while navigating secondary screens
+  if (navigationModeActive) {
+    Serial.println("Navigation active - skipping sleep");
+    return;
+  }
+
   epd_poweroff_all();
   UpdateLocalTime();
   SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)) + Delta; //Some ESP32 have a RTC that is too fast to maintain accurate time, so add an offset
@@ -253,11 +280,75 @@ void InitialiseSystem() {
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
 }
 
+// Refresh screen based on current state
+void refreshScreen() {
+  epd_poweron();
+  epd_clear();
+  memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
+
+  switch (currentScreen) {
+    case SCREEN_MAIN:
+      DisplayWeather();
+      break;
+    case SCREEN_CURRENT_DETAIL:
+      DisplayCurrentDetailScreen();
+      break;
+    case SCREEN_FORECAST:
+      DisplayForecastScreen();
+      break;
+    case SCREEN_GRAPHS:
+      DisplayGraphsScreen();
+      break;
+  }
+
+  edp_update();
+  epd_poweroff_all();
+}
+
+// Handle touch input and screen navigation
+void handleTouchNavigation() {
+  if (pollTouch()) {
+    lastTouchTime = millis();  // Reset timeout on any touch
+    ScreenState newScreen = checkTouchZone(lastTouch.x, lastTouch.y, currentScreen);
+
+    Serial.printf("Current screen: %d, New screen: %d\n", currentScreen, newScreen);
+
+    if (newScreen != currentScreen) {
+      Serial.println("Changing screen...");
+      currentScreen = newScreen;
+
+      if (currentScreen != SCREEN_MAIN) {
+        navigationModeActive = true;
+        navigationStartTime = millis();
+      } else {
+        navigationModeActive = false;
+      }
+
+      refreshScreen();
+    }
+  }
+
+  // Check for timeout (30 seconds without touch)
+  if (millis() - lastTouchTime > 30000) {
+    Serial.println("30 second timeout - going to sleep");
+    currentScreen = SCREEN_MAIN;
+    navigationModeActive = false;
+    refreshScreen();
+    delay(500);
+    BeginSleep();
+  }
+}
+
 void loop() {
   // Handle AP mode web server
   if (inAPMode) {
     handleAPMode();
+    return;
   }
+
+  // Always handle touch navigation
+  handleTouchNavigation();
+  delay(100);  // Reduce CPU load while polling
 }
 
 // Apply stored configuration to global variables
@@ -327,6 +418,13 @@ void displayAPModeScreen() {
 void setup() {
   InitialiseSystem();
 
+  // Initialize touch controller
+  if (InitializeTouch()) {
+    Serial.println("Touch controller initialized successfully");
+  } else {
+    Serial.println("Warning: Touch controller not available");
+  }
+
   // Load stored configuration
   loadConfig();
   applyStoredConfig();
@@ -360,11 +458,18 @@ void setup() {
       Serial.println("Received all weather data...");
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
         StopWiFi();         // Reduces power consumption
+        currentScreen = SCREEN_MAIN;
         epd_poweron();      // Switch on EPD display
         epd_clear();        // Clear the screen
         DisplayWeather();   // Display the weather data
         edp_update();       // Update the display to show the information
         epd_poweroff_all(); // Switch off all power to EPD
+
+        // Initialize touch time and let loop() handle navigation
+        Serial.println("Touch navigation active - 30 second timeout");
+        lastTouchTime = millis();
+        navigationModeActive = true;  // Enable touch handling in loop()
+        return;  // Go to loop() for continuous touch handling
       }
     }
   } else {
@@ -784,6 +889,7 @@ void DrawSunsetImage(int x, int y) {
 
 
 void DisplayForecastSection(int x, int y) {
+  const int main_screen_readings = 24;  // 3 days for main screen graphs
   for(int i = 0; i< min(7, max_readings); i++) {
     DisplayForecastWeather(x, y, i);
   }
@@ -800,14 +906,14 @@ void DisplayForecastSection(int x, int y) {
   int gx = (SCREEN_WIDTH - gwidth * 4) / 5 + 8;
   int gy = (SCREEN_HEIGHT - gheight - 30);
   int gap = gwidth + gx;
-  // (x,y,width,height,MinValue, MaxValue, Title, Data Array, AutoScale, ChartMode)
-  DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30,    Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(gx + 2 * gap, gy, gwidth, gheight, 0, 100,   TXT_HUMIDITY_PERCENT, humidity_readings, max_readings, autoscale_off, barchart_off);
-  if (SumOfPrecip(rain_readings, max_readings) >= SumOfPrecip(snow_readings, max_readings))
-    DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on, barchart_on);
+  // (x,y,width,height,MinValue, MaxValue, Title, Data Array, AutoScale, ChartMode) - Using 24 readings (3 days) for main screen
+  DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, main_screen_readings, autoscale_on, barchart_off);
+  DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30,    Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, main_screen_readings, autoscale_on, barchart_off);
+  DrawGraph(gx + 2 * gap, gy, gwidth, gheight, 0, 100,   TXT_HUMIDITY_PERCENT, humidity_readings, main_screen_readings, autoscale_off, barchart_off);
+  if (SumOfPrecip(rain_readings, main_screen_readings) >= SumOfPrecip(snow_readings, main_screen_readings))
+    DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, main_screen_readings, autoscale_on, barchart_on);
   else
-    DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, max_readings, autoscale_on, barchart_on);
+    DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, main_screen_readings, autoscale_on, barchart_on);
 }
 
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize) {
@@ -881,6 +987,9 @@ void DrawRSSI(int x, int y, int rssi) {
     fillRect(x + xpos * 8, y - WIFIsignal, 6, WIFIsignal, Black);
     xpos++;
   }
+  // Show signal strength in dBm below bars
+  setFont(OpenSans8B);
+  drawString(x + 25, y + 8, String(rssi) + "dB", CENTER);
 }
 
 boolean UpdateLocalTime() {
@@ -1318,5 +1427,200 @@ void setFont(GFXfont const &font) {
 
 void edp_update() {
   epd_draw_grayscale_image(epd_full_screen(), framebuffer); // Update the screen
+}
+
+// ==================== TOUCH SCREEN FUNCTIONS ====================
+
+// Screen 2: Current conditions detail
+void DisplayCurrentDetailScreen() {
+
+  // Title
+  setFont(OpenSans14B);
+  drawString(SCREEN_WIDTH / 2, 20, TXT_CURRENT_CONDITIONS, CENTER);
+  drawFastHLine(150, 45, SCREEN_WIDTH - 300, Grey);
+
+  String tempUnit = (Units == "M") ? "C" : "F";
+
+  // Left side: Weather icon and description
+  DisplayConditionsSection(120, 140, WxConditions[0].Icon, LargeIcon);
+  setFont(OpenSans12B);
+  drawString(120, 220, TitleCase(WxConditions[0].Forecast0), CENTER);
+
+  // Center: Temperature large
+  setFont(OpenSans24B);
+  drawString(350, 100, String(WxConditions[0].Temperature, 1) + " " + tempUnit, CENTER);
+  setFont(OpenSans10B);
+  drawString(350, 140, "Max " + String(WxConditions[0].High, 0) + " / Min " + String(WxConditions[0].Low, 0), CENTER);
+
+  // Right columns: 3 columns of data
+  int col1X = 520, col2X = 680, col3X = 840;
+  int row1Y = 80, row2Y = 160, rowSpacing = 45;
+
+  // Row 1: Humidity, Pressure, Wind
+  setFont(OpenSans18B);
+  drawString(col1X, row1Y, String(WxConditions[0].Humidity, 0) + "%", CENTER);
+  float pressValue = (Units == "M") ? WxConditions[0].Pressure : WxConditions[0].Pressure * 0.02953;
+  drawString(col2X, row1Y, String(pressValue, 0), CENTER);
+  drawString(col3X, row1Y, String(WxConditions[0].Windspeed, 1), CENTER);
+
+  setFont(OpenSans9B);
+  drawString(col1X, row1Y + 25, "Humedad", CENTER);
+  drawString(col2X, row1Y + 25, (Units == "M") ? "hPa" : "inHg", CENTER);
+  drawString(col3X, row1Y + 25, (Units == "M") ? "m/s" : "mph", CENTER);
+
+  // Row 2: Visibility, Clouds, Wind Dir
+  setFont(OpenSans18B);
+  float visKm = WxConditions[0].Visibility / 1000.0;
+  drawString(col1X, row2Y, String(visKm, 1) + "km", CENTER);
+  drawString(col2X, row2Y, String(WxConditions[0].Cloudcover) + "%", CENTER);
+  drawString(col3X, row2Y, WindDegToOrdinalDirection(WxConditions[0].Winddir), CENTER);
+
+  setFont(OpenSans9B);
+  drawString(col1X, row2Y + 25, "Visibilidad", CENTER);
+  drawString(col2X, row2Y + 25, "Nubosidad", CENTER);
+  drawString(col3X, row2Y + 25, "Dir Viento", CENTER);
+
+  // Bottom: Sunrise/Sunset
+  drawFastHLine(50, 240, SCREEN_WIDTH - 100, Grey);
+  setFont(OpenSans12B);
+  drawString(300, 260, TXT_SUNRISE + ": " + ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), CENTER);
+  drawString(650, 260, TXT_SUNSET + ": " + ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), CENTER);
+}
+
+// Screen 3: Extended forecast
+void DisplayForecastScreen() {
+  // Title
+  setFont(OpenSans12B);
+  drawString(SCREEN_WIDTH / 2, 15, TXT_5DAY_FORECAST, CENTER);
+
+  // Hourly forecast - 8 columns
+  setFont(OpenSans8B);
+  drawString(SCREEN_WIDTH / 2, 38, TXT_NEXT_24H, CENTER);
+
+  int hourlyY = 55;
+  int hourlyWidth = SCREEN_WIDTH / 8;  // 120 pixels each
+  for (int i = 0; i < min(8, max_readings); i++) {
+    int xPos = hourlyWidth / 2 + i * hourlyWidth;
+
+    setFont(OpenSans8B);
+    String timeStr = ConvertUnixTime(WxForecast[i].Dt + WxConditions[0].Timezone).substring(0, 5);
+    drawString(xPos, hourlyY, timeStr, CENTER);
+
+    DisplayConditionsSection(xPos, hourlyY + 45, WxForecast[i].Icon, SmallIcon);
+
+    setFont(OpenSans8B);
+    drawString(xPos, hourlyY + 80, String(WxForecast[i].High, 0) + "/" + String(WxForecast[i].Low, 0), CENTER);
+  }
+
+  // Divider
+  drawFastHLine(30, 150, SCREEN_WIDTH - 60, Grey);
+
+  // 5-day forecast - horizontal layout (5 columns)
+  setFont(OpenSans8B);
+  drawString(SCREEN_WIDTH / 2, 160, TXT_5DAY_OUTLOOK, CENTER);
+
+  int dailyY = 180;
+  int dailyWidth = SCREEN_WIDTH / 5;  // 192 pixels each
+
+  for (int day = 0; day < 5; day++) {
+    int baseIdx = day * 8;
+    if (baseIdx >= max_readings) break;
+
+    int xPos = dailyWidth / 2 + day * dailyWidth;
+
+    // Day name
+    time_t tm = WxForecast[baseIdx].Dt;
+    struct tm *dt = localtime(&tm);
+    setFont(OpenSans10B);
+    drawString(xPos, dailyY, weekday_D[dt->tm_wday], CENTER);
+
+    // Calculate high/low/rain for the day
+    float dayHigh = -100, dayLow = 100, dayRain = 0;
+    String dayIcon = "";
+    for (int h = 0; h < 8 && (baseIdx + h) < max_readings; h++) {
+      int idx = baseIdx + h;
+      if (WxForecast[idx].High > dayHigh) dayHigh = WxForecast[idx].High;
+      if (WxForecast[idx].Low < dayLow) dayLow = WxForecast[idx].Low;
+      dayRain += WxForecast[idx].Rainfall;
+      if (h == 4 || h == 5) dayIcon = WxForecast[idx].Icon;
+    }
+    if (dayIcon == "") dayIcon = WxForecast[baseIdx].Icon;
+
+    // Weather icon
+    DisplayConditionsSection(xPos, dailyY + 55, dayIcon, SmallIcon);
+
+    // Temperature
+    setFont(OpenSans10B);
+    drawString(xPos, dailyY + 95, String(dayHigh, 0) + "/" + String(dayLow, 0), CENTER);
+
+    // Rain if any
+    if (dayRain > 0.1) {
+      setFont(OpenSans8B);
+      drawString(xPos, dailyY + 112, String(dayRain, 1) + "mm", CENTER);
+    }
+  }
+}
+
+// Screen 4: Expanded graphs
+void DisplayGraphsScreen() {
+  setFont(OpenSans14B);
+  drawString(SCREEN_WIDTH / 2, 25, TXT_WEATHER_TRENDS, CENTER);
+
+  // Prepare data
+  for (int r = 0; r < max_readings; r++) {
+    if (Units == "I") {
+      pressure_readings[r] = WxForecast[r].Pressure * 0.02953;
+      rain_readings[r] = WxForecast[r].Rainfall * 0.0393701;
+      snow_readings[r] = WxForecast[r].Snowfall * 0.0393701;
+    } else {
+      pressure_readings[r] = WxForecast[r].Pressure;
+      rain_readings[r] = WxForecast[r].Rainfall;
+      snow_readings[r] = WxForecast[r].Snowfall;
+    }
+    temperature_readings[r] = WxForecast[r].Temperature;
+    humidity_readings[r] = WxForecast[r].Humidity;
+  }
+
+  // Centered 2x2 grid of graphs
+  int gwidth = 320, gheight = 150;
+  int hgap = 60, vgap = 35;
+  int totalW = gwidth * 2 + hgap;  // 700
+  int totalH = gheight * 2 + vgap; // 335
+  int gx1 = (SCREEN_WIDTH - totalW) / 2;  // 130
+  int gx2 = gx1 + gwidth + hgap;          // 510
+  int gy1 = 55 + (SCREEN_HEIGHT - 55 - totalH) / 2;  // centered below title
+  int gy2 = gy1 + gheight + vgap;
+
+  // Temperature - top left
+  if (Units == "M")
+    DrawGraph(gx1, gy1, gwidth, gheight, 10, 40, TXT_TEMPERATURE_C, temperature_readings, max_readings, autoscale_on, barchart_off);
+  else
+    DrawGraph(gx1, gy1, gwidth, gheight, 50, 95, TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
+
+  // Pressure - top right
+  if (Units == "M")
+    DrawGraph(gx2, gy1, gwidth, gheight, 900, 1050, TXT_PRESSURE_HPA, pressure_readings, max_readings, autoscale_on, barchart_off);
+  else
+    DrawGraph(gx2, gy1, gwidth, gheight, 26, 31, TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
+
+  // Humidity - bottom left
+  DrawGraph(gx1, gy2, gwidth, gheight, 0, 100, TXT_HUMIDITY_PERCENT, humidity_readings, max_readings, autoscale_off, barchart_off);
+
+  // Rain/Snow - bottom right
+  if (SumOfPrecip(rain_readings, max_readings) >= SumOfPrecip(snow_readings, max_readings)) {
+    if (Units == "M")
+      DrawGraph(gx2, gy2, gwidth, gheight, 0, 30, TXT_RAINFALL_MM, rain_readings, max_readings, autoscale_on, barchart_on);
+    else
+      DrawGraph(gx2, gy2, gwidth, gheight, 0, 1.2, TXT_RAINFALL_IN, rain_readings, max_readings, autoscale_on, barchart_on);
+  } else {
+    if (Units == "M")
+      DrawGraph(gx2, gy2, gwidth, gheight, 0, 30, TXT_SNOWFALL_MM, snow_readings, max_readings, autoscale_on, barchart_on);
+    else
+      DrawGraph(gx2, gy2, gwidth, gheight, 0, 1.2, TXT_SNOWFALL_IN, snow_readings, max_readings, autoscale_on, barchart_on);
+  }
+
+  setFont(OpenSans8B);
+  drawString(gx1 + gwidth / 2, gy2 + gheight + 15, "0d   1d   2d   3d   4d   5d", CENTER);
+  drawString(gx2 + gwidth / 2, gy2 + gheight + 15, "0d   1d   2d   3d   4d   5d", CENTER);
 }
 

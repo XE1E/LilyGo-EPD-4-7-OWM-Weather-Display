@@ -88,3 +88,11 @@ const char* weekday_D[] = { "Domingo", "Lunes", "Martes", "Miercoles", "Jueves",
 //Month
 //const char* month_M[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 const char* month_M[] = { "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" };
+
+// Touch Navigation Screens
+const String TXT_BACK = "Regresar";
+const String TXT_CURRENT_CONDITIONS = "Condiciones Actuales";
+const String TXT_5DAY_FORECAST = "Pronostico 5 Dias";
+const String TXT_WEATHER_TRENDS = "Tendencias del Clima";
+const String TXT_NEXT_24H = "Proximas 24 Horas:";
+const String TXT_5DAY_OUTLOOK = "Pronostico 5 Dias:";
