@@ -1,41 +1,46 @@
 const bool DebugDisplayUpdate = false;
 
-// Change to your WiFi credentials
-const char* ssid     = "Your WiFi SSID";
-const char* password = "Your PASSWORD";
+// ============================================================================
+// NOTE: These are DEFAULT/FALLBACK values. You can configure all settings
+// via the web interface when:
+//   1. No configured WiFi network is found (automatic), OR
+//   2. FORCE_AP_MODE is set to true in the main .ino file
+// The device will create a WiFi hotspot "WeatherStation-Setup" for configuration.
+// Web-configured values will override these defaults.
+// ============================================================================
 
-// Use your own API key by signing up for a free developer account at https://openweathermap.org/
-String apikey       = "Your OWM API Key";                      // See: https://openweathermap.org/
+// Set to your WiFi credentials (multiple SSIDs supported)
+// The device will scan and connect to the one with the highest signal strength
+struct WiFiCredentials {
+  const char* ssid;
+  const char* password;
+};
+
+const WiFiCredentials wifiNetworks[] = {
+  {"TP-LINKv2", "rocio123"},
+  // Add more networks below:
+  {"Totalplay-2.4G-3a80", "uYAMN6wLpkSwe4Cj"},
+  {"STARLINK-6G", "quique12"},
+};
+
+const int wifiNetworkCount = sizeof(wifiNetworks) / sizeof(wifiNetworks[0]);
+
+// Get API key by signing up for a free developer account at https://openweathermap.org/
+String apikey       = "fa09d4a18ea665f95b166cbae3449eca";                     // See: https://openweathermap.org/
 const char server[] = "api.openweathermap.org";
-//http://api.openweathermap.org/data/2.5/forecast?q=Melksham,UK&APPID=your_OWM_API_key&mode=json&units=metric&cnt=40
-//http://api.openweathermap.org/data/2.5/weather?q=Melksham,UK&APPID=your_OWM_API_key&mode=json&units=metric&cnt=1
 
-//Set your location according to OWM locations
-String City             = "Bath";                          // Your home city See: http://bulk.openweathermap.org/sample/
-String Country          = "GB";                            // Your _ISO-3166-1_two-letter_country_code country code, on OWM find your nearest city and the country code is displayed
-                                                           // https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes
-String Language         = "EN";                            // NOTE: Only the weather description is translated by OWM
+//Set your location 
+String City             = "CDMX";                     // Your home city name
+String Latitude         = "19.3803";                        // Latitude of your location in decimal degrees
+String Longitude        = "-99.1746";                         // Longitude of your location in decimal degrees
+
+String Language         = "ES";                            // NOTE: Only the weather description is translated by OWM
                                                            // Examples: Arabic (AR) Czech (CZ) English (EN) Greek (EL) Persian(Farsi) (FA) Galician (GL) Hungarian (HU) Japanese (JA)
                                                            // Korean (KR) Latvian (LA) Lithuanian (LT) Macedonian (MK) Slovak (SK) Slovenian (SL) Vietnamese (VI)
 String Hemisphere       = "north";                         // or "south"  
 String Units            = "M";                             // Use 'M' for Metric or I for Imperial 
-const char* Timezone    = "GMT0BST,M3.5.0/01,M10.5.0/02";  // Choose your time zone from: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv 
-                                                           // See below for examples
-const char* ntpServer   = "0.uk.pool.ntp.org";             // Or, choose a time server close to you, but in most cases it's best to use pool.ntp.org to find an NTP server
-                                                           // then the NTP system decides e.g. 0.pool.ntp.org, 1.pool.ntp.org as the NTP syem tries to find  the closest available servers
-                                                           // EU "0.europe.pool.ntp.org"
-                                                           // US "0.north-america.pool.ntp.org"
-                                                           // See: https://www.ntppool.org/en/                                                           
-int   gmtOffset_sec     = 0;    // UK normal time is GMT, so GMT Offset is 0, for US (-5Hrs) is typically -18000, AU is typically (+8hrs) 28800
-int  daylightOffset_sec = 3600; // In the UK DST is +1hr or 3600-secs, other countries may use 2hrs 7200 or 30-mins 1800 or 5.5hrs 19800 Ahead of GMT use + offset behind - offset
 
-// Example time zones
-//const char* Timezone = "MET-1METDST,M3.5.0/01,M10.5.0/02"; // Most of Europe
-//const char* Timezone = "CET-1CEST,M3.5.0,M10.5.0/3";       // Central Europe
-//const char* Timezone = "EST-2METDST,M3.5.0/01,M10.5.0/02"; // Most of Europe
-//const char* Timezone = "EST5EDT,M3.2.0,M11.1.0";           // EST USA  
-//const char* Timezone = "CST6CDT,M3.2.0,M11.1.0";           // CST USA
-//const char* Timezone = "MST7MDT,M4.1.0,M10.5.0";           // MST USA
-//const char* Timezone = "NZST-12NZDT,M9.5.0,M4.1.0/3";      // Auckland
-//const char* Timezone = "EET-2EEST,M3.5.5/0,M10.5.5/0";     // Asia
-//const char* Timezone = "ACST-9:30ACDT,M10.1.0,M4.1.0/3":   // Australia
+const char* Timezone    = "CST6";    // Choose your time zone from: https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv 
+const char* ntpServer   = "time.cloudflare.com";                  // Choose a time server close to you, or use pool.ntp.org to find an NTP server                                                   
+int  gmtOffset_sec      = -21600;                               // UK normal time is GMT, so GMT Offset is 0, for US (-5Hrs) is typically -18000, AU is typically (+8hrs) 28800
+int  daylightOffset_sec = 0;                            // In the UK DST is +1hr or 3600-secs, other countries may use 2hrs 7200 or 30-mins 1800 or 5.5hrs 19800 Ahead of GMT use + offset behind - offset
