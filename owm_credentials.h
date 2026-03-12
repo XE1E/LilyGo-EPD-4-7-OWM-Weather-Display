@@ -26,7 +26,7 @@ const WiFiCredentials wifiNetworks[] = {
 const int wifiNetworkCount = sizeof(wifiNetworks) / sizeof(wifiNetworks[0]);
 
 // Get API key by signing up for a free developer account at https://openweathermap.org/
-String apikey       = "fa09d4a18ea665f95b166cbae3449eca";                     // See: https://openweathermap.org/
+String apikey       = "53bcaef6034d4d98b5e25b877245ae62";                     // See: https://openweathermap.org/
 const char server[] = "api.openweathermap.org";
 
 //Set your location 

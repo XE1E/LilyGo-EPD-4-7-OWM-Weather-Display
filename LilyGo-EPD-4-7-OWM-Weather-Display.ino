@@ -14,6 +14,19 @@
 //                  PSRAM:"OPI PSRAM"
 //                  Upload Mode:"UART0/Hardware CDC"
 //                  USB Mode:"Hardware CDC and JTAG"
+//            Board Manager ->
+//                  esp32 by Espressif Systems 2.0.17
+//            Libraries ->
+//                  EPD47-master https://github.com/DFRobotdl/EPD47/archive/refs/heads/master.zip
+//                  Arduinojson by Benoit Blanchon 6.19.0
+//                  put only this 2 libraries in libraries folder
+//            To force upload mode ->
+//                  Press and hold the BOOT(IO0) button
+//                  While still pressing the BOOT(IO0) button, press RST
+//                  Release the RST
+//                  Release the BOOT(IO0) button
+//
+//
 
 #include <Arduino.h>            // In-built
 #include <esp_task_wdt.h>       // In-built
@@ -77,7 +90,7 @@ float snow_readings[max_readings]        = {0};
 
 long SleepDuration   = 10; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
 int  WakeupHour      = 8;  // Don't wakeup until after 07:00 to save battery power
-int  SleepHour       = 0; // Sleep after 23:00 to save battery power
+int  SleepHour       = 1; // Sleep after 01:00 to save battery power
 long StartTime       = 0;
 long SleepTimer      = 0;
 long Delta           = 30; // ESP32 rtc speed compensation, prevents display at xx:59:yy and then xx:00:yy (one minute later) to save power
@@ -541,7 +554,7 @@ void DisplayWeather() {                          // 4.7" e-paper display is 960x
 }
 
 void DisplayGeneralInfoSection() {
-  setFont(OpenSans12B);  //estaba 10B
+  setFont(OpenSans14B);  //estaba 10B
   drawString(20, 13, City, LEFT); //estaba 5,2
   setFont(OpenSans10B); //estaba 8B
   drawString(300, 15, Date_str + "  @ " + Time_str, LEFT); // estaba 300,2

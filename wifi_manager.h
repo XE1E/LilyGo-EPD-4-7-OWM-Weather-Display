@@ -217,11 +217,11 @@ void loadConfig() {
   strlcpy(config.city, preferences.getString("city", "").c_str(), sizeof(config.city));
   strlcpy(config.latitude, preferences.getString("lat", "").c_str(), sizeof(config.latitude));
   strlcpy(config.longitude, preferences.getString("lon", "").c_str(), sizeof(config.longitude));
-  strlcpy(config.language, preferences.getString("lang", "EN").c_str(), sizeof(config.language));
+  strlcpy(config.language, preferences.getString("lang", "ES").c_str(), sizeof(config.language));
   strlcpy(config.hemisphere, preferences.getString("hemi", "north").c_str(), sizeof(config.hemisphere));
   strlcpy(config.units, preferences.getString("units", "M").c_str(), sizeof(config.units));
-  strlcpy(config.timezone, preferences.getString("tz", "GMT0").c_str(), sizeof(config.timezone));
-  config.gmt_offset = preferences.getInt("gmt", 0);
+  strlcpy(config.timezone, preferences.getString("tz", "CST6").c_str(), sizeof(config.timezone));
+  config.gmt_offset = preferences.getInt("gmt", -21600);
   config.dst_offset = preferences.getInt("dst", 0);
   forceAPMode = preferences.getBool("forceAP", false);
 
