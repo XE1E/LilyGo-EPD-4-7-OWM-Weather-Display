@@ -98,6 +98,8 @@ long Delta           = 30; // ESP32 rtc speed compensation, prevents display at 
 // AP Mode state
 bool inAPMode = false;
 const bool FORCE_AP_MODE = false;  // Set to true to force AP mode on next boot
+unsigned long apModeStartTime = 0;
+const unsigned long AP_RETRY_TIMEOUT = 60000;  // 1 minute timeout to retry WiFi
 
 //fonts
 #include "opensans8b.h"
@@ -343,6 +345,47 @@ void loop() {
   // Handle AP mode web server
   if (inAPMode) {
     handleAPMode();
+
+    // Check if 1 minute has passed to retry WiFi connection
+    if (millis() - apModeStartTime >= AP_RETRY_TIMEOUT) {
+      Serial.println("AP mode timeout - retrying WiFi connection...");
+      stopAPMode();
+      inAPMode = false;
+
+      // Try to connect to WiFi
+      if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
+        Serial.println("WiFi connected! Fetching weather data...");
+        bool RxWeather  = false;
+        bool RxForecast = false;
+        WiFiClient client;
+        byte Attempts = 1;
+        while ((RxWeather == false || RxForecast == false) && Attempts <= 2) {
+          if (RxWeather  == false) RxWeather  = obtainWeatherData(client, "weather");
+          if (RxForecast == false) RxForecast = obtainWeatherData(client, "forecast");
+          Attempts++;
+        }
+        if (RxWeather && RxForecast) {
+          StopWiFi();
+          currentScreen = SCREEN_MAIN;
+          epd_poweron();
+          epd_clear();
+          memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
+          DisplayWeather();
+          edp_update();
+          epd_poweroff_all();
+          lastTouchTime = millis();
+          navigationModeActive = true;
+          return;
+        }
+      }
+
+      // WiFi failed again - return to AP mode
+      Serial.println("WiFi retry failed - returning to AP mode...");
+      inAPMode = true;
+      apModeStartTime = millis();
+      displayAPModeScreen();
+      startAPMode();
+    }
     return;
   }
 
@@ -433,6 +476,7 @@ void setup() {
   if (FORCE_AP_MODE || forceAPMode) {
     Serial.println("Entering AP mode (forced via flag)...");
     inAPMode = true;
+    apModeStartTime = millis();
     displayAPModeScreen();
     startAPMode();
     return;  // Stay in loop() for AP mode handling
@@ -476,6 +520,7 @@ void setup() {
     // WiFi connection failed - enter AP mode
     Serial.println("WiFi connection failed! Entering AP mode...");
     inAPMode = true;
+    apModeStartTime = millis();
     displayAPModeScreen();
     startAPMode();
     return;  // Stay in loop() for AP mode handling
@@ -766,7 +811,7 @@ void DisplayPressureSection(int x, int y, float pressure, String slope) {
   setFont(OpenSans14B);
   DrawPressureAndTrend(x - 25, y + 40, pressure, slope);  // estaba 25 10
   if (WxConditions[0].Visibility > 0) {
-    Visibility(x + 143, y + 30, String(WxConditions[0].Visibility) + "M");  // estaba 145 y sin +15
+    Visibility(x + 143, y + 30, String(WxConditions[0].Visibility / 1000.0, 2) + "km");  // estaba 145 y sin +15
     x += 150; // Draw the text in the same positions if one is zero, otherwise in-line
   }
   if (WxConditions[0].Cloudcover > 0) CloudCover(x + 155, y + 28, WxConditions[0].Cloudcover);  // estaba 145 sin +15
@@ -1441,85 +1486,103 @@ void DisplayCurrentDetailScreen() {
 
   String tempUnit = (Units == "M") ? "C" : "F";
 
-  // Left side: Weather icon and description
-  DisplayConditionsSection(120, 140, WxConditions[0].Icon, LargeIcon);
-  setFont(OpenSans12B);
-  drawString(120, 220, TitleCase(WxConditions[0].Forecast0), CENTER);
+  // === TOP SECTION: Temperature, Pressure, Humidity ===
+  int col1X = 160, col2X = 480, col3X = 800;
+  int topY = 80;
 
-  // Center: Temperature large
+  // Temperature
   setFont(OpenSans24B);
-  drawString(350, 100, String(WxConditions[0].Temperature, 1) + " " + tempUnit, CENTER);
+  drawString(col1X, topY, String(WxConditions[0].Temperature, 1) + " " + tempUnit, CENTER);
   setFont(OpenSans10B);
-  drawString(350, 140, "Max " + String(WxConditions[0].High, 0) + " / Min " + String(WxConditions[0].Low, 0), CENTER);
+  drawString(col1X, topY + 45, "Max " + String(WxConditions[0].High, 0) + " / Min " + String(WxConditions[0].Low, 0), CENTER);
 
-  // Right columns: 3 columns of data
-  int col1X = 520, col2X = 680, col3X = 840;
-  int row1Y = 80, row2Y = 160, rowSpacing = 45;
-
-  // Row 1: Humidity, Pressure, Wind
-  setFont(OpenSans18B);
-  drawString(col1X, row1Y, String(WxConditions[0].Humidity, 0) + "%", CENTER);
+  // Pressure
+  setFont(OpenSans24B);
   float pressValue = (Units == "M") ? WxConditions[0].Pressure : WxConditions[0].Pressure * 0.02953;
-  drawString(col2X, row1Y, String(pressValue, 0), CENTER);
-  drawString(col3X, row1Y, String(WxConditions[0].Windspeed, 1), CENTER);
+  drawString(col2X, topY, String(pressValue, 0), CENTER);
+  setFont(OpenSans10B);
+  drawString(col2X, topY + 45, (Units == "M") ? "hPa" : "inHg", CENTER);
 
-  setFont(OpenSans9B);
-  drawString(col1X, row1Y + 25, "Humedad", CENTER);
-  drawString(col2X, row1Y + 25, (Units == "M") ? "hPa" : "inHg", CENTER);
-  drawString(col3X, row1Y + 25, (Units == "M") ? "m/s" : "mph", CENTER);
+  // Humidity
+  setFont(OpenSans24B);
+  drawString(col3X, topY, String(WxConditions[0].Humidity, 0) + "%", CENTER);
+  setFont(OpenSans10B);
+  drawString(col3X, topY + 45, "Humedad", CENTER);
 
-  // Row 2: Visibility, Clouds, Wind Dir
+  // === MIDDLE SECTION: Weather Icon + Details ===
+  drawFastHLine(50, 160, SCREEN_WIDTH - 100, Grey);
+
+  // Left: Weather icon
+  DisplayConditionsSection(200, 270, WxConditions[0].Icon, LargeIcon);
+  setFont(OpenSans12B);
+  drawString(200, 360, TitleCase(WxConditions[0].Forecast0), CENTER);
+
+  // Right: Visibility, Wind Direction, Clouds
+  int rightColLabel = 550, rightColValue = 780;
+  int row1Y = 200, row2Y = 270, row3Y = 340;
+
+  setFont(OpenSans12B);
+  drawString(rightColLabel, row1Y, "Visibilidad:", RIGHT);
+  drawString(rightColLabel, row2Y, "Direccion Viento:", RIGHT);
+  drawString(rightColLabel, row3Y, "Nubosidad:", RIGHT);
+
   setFont(OpenSans18B);
   float visKm = WxConditions[0].Visibility / 1000.0;
-  drawString(col1X, row2Y, String(visKm, 1) + "km", CENTER);
-  drawString(col2X, row2Y, String(WxConditions[0].Cloudcover) + "%", CENTER);
-  drawString(col3X, row2Y, WindDegToOrdinalDirection(WxConditions[0].Winddir), CENTER);
+  drawString(rightColValue, row1Y - 5, String(visKm, 1) + " km", CENTER);
+  drawString(rightColValue, row2Y - 5, WindDegToOrdinalDirection(WxConditions[0].Winddir) + " " + String(WxConditions[0].Windspeed, 1) + ((Units == "M") ? " m/s" : " mph"), CENTER);
+  drawString(rightColValue, row3Y - 5, String(WxConditions[0].Cloudcover) + "%", CENTER);
 
-  setFont(OpenSans9B);
-  drawString(col1X, row2Y + 25, "Visibilidad", CENTER);
-  drawString(col2X, row2Y + 25, "Nubosidad", CENTER);
-  drawString(col3X, row2Y + 25, "Dir Viento", CENTER);
+  // === BOTTOM SECTION: Sunrise, Sunset, Rain Probability ===
+  drawFastHLine(50, 400, SCREEN_WIDTH - 100, Grey);
 
-  // Bottom: Sunrise/Sunset
-  drawFastHLine(50, 240, SCREEN_WIDTH - 100, Grey);
-  setFont(OpenSans12B);
-  drawString(300, 260, TXT_SUNRISE + ": " + ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), CENTER);
-  drawString(650, 260, TXT_SUNSET + ": " + ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), CENTER);
+  int bottomY = 460;
+  int bot1X = 160, bot2X = 480, bot3X = 800;
+
+  setFont(OpenSans18B);
+  drawString(bot1X, bottomY, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), CENTER);
+  drawString(bot2X, bottomY, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), CENTER);
+  drawString(bot3X, bottomY, String(WxForecast[0].Pop * 100, 0) + "%", CENTER);
+
+  setFont(OpenSans10B);
+  drawString(bot1X, bottomY + 35, TXT_SUNRISE, CENTER);
+  drawString(bot2X, bottomY + 35, TXT_SUNSET, CENTER);
+  drawString(bot3X, bottomY + 35, "Prob. Lluvia", CENTER);
 }
 
 // Screen 3: Extended forecast
 void DisplayForecastScreen() {
   // Title
+  setFont(OpenSans14B);
+  drawString(SCREEN_WIDTH / 2, 25, "Pronostico", CENTER);
+  drawFastHLine(150, 50, SCREEN_WIDTH - 300, Grey);
+
+  // === SECTION 1: Hourly forecast - 8 columns ===
   setFont(OpenSans12B);
-  drawString(SCREEN_WIDTH / 2, 15, TXT_5DAY_FORECAST, CENTER);
+  drawString(SCREEN_WIDTH / 2, 75, TXT_NEXT_24H, CENTER);
 
-  // Hourly forecast - 8 columns
-  setFont(OpenSans8B);
-  drawString(SCREEN_WIDTH / 2, 38, TXT_NEXT_24H, CENTER);
-
-  int hourlyY = 55;
+  int hourlyY = 105;
   int hourlyWidth = SCREEN_WIDTH / 8;  // 120 pixels each
   for (int i = 0; i < min(8, max_readings); i++) {
     int xPos = hourlyWidth / 2 + i * hourlyWidth;
 
-    setFont(OpenSans8B);
+    setFont(OpenSans10B);
     String timeStr = ConvertUnixTime(WxForecast[i].Dt + WxConditions[0].Timezone).substring(0, 5);
     drawString(xPos, hourlyY, timeStr, CENTER);
 
-    DisplayConditionsSection(xPos, hourlyY + 45, WxForecast[i].Icon, SmallIcon);
+    DisplayConditionsSection(xPos, hourlyY + 50, WxForecast[i].Icon, SmallIcon);
 
-    setFont(OpenSans8B);
-    drawString(xPos, hourlyY + 80, String(WxForecast[i].High, 0) + "/" + String(WxForecast[i].Low, 0), CENTER);
+    setFont(OpenSans10B);
+    drawString(xPos, hourlyY + 90, String(WxForecast[i].High, 0) + "/" + String(WxForecast[i].Low, 0), CENTER);
   }
 
   // Divider
-  drawFastHLine(30, 150, SCREEN_WIDTH - 60, Grey);
+  drawFastHLine(50, 230, SCREEN_WIDTH - 100, Grey);
 
-  // 5-day forecast - horizontal layout (5 columns)
-  setFont(OpenSans8B);
-  drawString(SCREEN_WIDTH / 2, 160, TXT_5DAY_OUTLOOK, CENTER);
+  // === SECTION 2: 5-day forecast - 5 columns ===
+  setFont(OpenSans12B);
+  drawString(SCREEN_WIDTH / 2, 255, TXT_5DAY_OUTLOOK, CENTER);
 
-  int dailyY = 180;
+  int dailyY = 290;
   int dailyWidth = SCREEN_WIDTH / 5;  // 192 pixels each
 
   for (int day = 0; day < 5; day++) {
@@ -1531,7 +1594,7 @@ void DisplayForecastScreen() {
     // Day name
     time_t tm = WxForecast[baseIdx].Dt;
     struct tm *dt = localtime(&tm);
-    setFont(OpenSans10B);
+    setFont(OpenSans12B);
     drawString(xPos, dailyY, weekday_D[dt->tm_wday], CENTER);
 
     // Calculate high/low/rain for the day
@@ -1547,16 +1610,16 @@ void DisplayForecastScreen() {
     if (dayIcon == "") dayIcon = WxForecast[baseIdx].Icon;
 
     // Weather icon
-    DisplayConditionsSection(xPos, dailyY + 55, dayIcon, SmallIcon);
+    DisplayConditionsSection(xPos, dailyY + 70, dayIcon, SmallIcon);
 
     // Temperature
-    setFont(OpenSans10B);
-    drawString(xPos, dailyY + 95, String(dayHigh, 0) + "/" + String(dayLow, 0), CENTER);
+    setFont(OpenSans12B);
+    drawString(xPos, dailyY + 120, String(dayHigh, 0) + "/" + String(dayLow, 0), CENTER);
 
     // Rain if any
     if (dayRain > 0.1) {
-      setFont(OpenSans8B);
-      drawString(xPos, dailyY + 112, String(dayRain, 1) + "mm", CENTER);
+      setFont(OpenSans10B);
+      drawString(xPos, dailyY + 150, String(dayRain, 1) + "mm", CENTER);
     }
   }
 }
@@ -1564,7 +1627,7 @@ void DisplayForecastScreen() {
 // Screen 4: Expanded graphs
 void DisplayGraphsScreen() {
   setFont(OpenSans14B);
-  drawString(SCREEN_WIDTH / 2, 25, TXT_WEATHER_TRENDS, CENTER);
+  drawString(SCREEN_WIDTH / 2, 25, "Historial del clima", CENTER);
 
   // Prepare data
   for (int r = 0; r < max_readings; r++) {
@@ -1583,12 +1646,12 @@ void DisplayGraphsScreen() {
 
   // Centered 2x2 grid of graphs
   int gwidth = 320, gheight = 150;
-  int hgap = 60, vgap = 35;
+  int hgap = 60, vgap = 65;
   int totalW = gwidth * 2 + hgap;  // 700
   int totalH = gheight * 2 + vgap; // 335
   int gx1 = (SCREEN_WIDTH - totalW) / 2;  // 130
   int gx2 = gx1 + gwidth + hgap;          // 510
-  int gy1 = 55 + (SCREEN_HEIGHT - 55 - totalH) / 2;  // centered below title
+  int gy1 = 55 + (SCREEN_HEIGHT - 55 - totalH) / 2 - 15;  // centered below title, raised 15px
   int gy2 = gy1 + gheight + vgap;
 
   // Temperature - top left
@@ -1619,8 +1682,5 @@ void DisplayGraphsScreen() {
       DrawGraph(gx2, gy2, gwidth, gheight, 0, 1.2, TXT_SNOWFALL_IN, snow_readings, max_readings, autoscale_on, barchart_on);
   }
 
-  setFont(OpenSans8B);
-  drawString(gx1 + gwidth / 2, gy2 + gheight + 15, "0d   1d   2d   3d   4d   5d", CENTER);
-  drawString(gx2 + gwidth / 2, gy2 + gheight + 15, "0d   1d   2d   3d   4d   5d", CENTER);
 }
 
