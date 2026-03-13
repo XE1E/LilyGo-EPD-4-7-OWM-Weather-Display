@@ -182,6 +182,7 @@ const char* TXT_CLOUDINESS_ARR[] = { "Nubosidad", "Cloudiness", "Nebulosite" };
 const char* TXT_WIND_ARR[] = { "Viento", "Wind", "Vent" };
 const char* TXT_WIND_DIR_ARR[] = { "Direccion Viento", "Wind Direction", "Direction Vent" };
 const char* TXT_RAIN_PROB_ARR[] = { "Prob. Lluvia", "Rain Prob.", "Prob. Pluie" };
+const char* TXT_FEELS_LIKE_ARR[] = { "Sensacion termica", "Feels like", "Ressenti" };
 
 #define TXT_HUMIDITY String(TXT_HUMIDITY_ARR[currentLang])
 #define TXT_PRESSURE String(TXT_PRESSURE_ARR[currentLang])
@@ -190,6 +191,7 @@ const char* TXT_RAIN_PROB_ARR[] = { "Prob. Lluvia", "Rain Prob.", "Prob. Pluie" 
 #define TXT_WIND String(TXT_WIND_ARR[currentLang])
 #define TXT_WIND_DIR String(TXT_WIND_DIR_ARR[currentLang])
 #define TXT_RAIN_PROB String(TXT_RAIN_PROB_ARR[currentLang])
+#define TXT_FEELS_LIKE String(TXT_FEELS_LIKE_ARR[currentLang])
 
 // ============== INITIALIZE LANGUAGE ==============
 void initLanguage(const char* lang) {

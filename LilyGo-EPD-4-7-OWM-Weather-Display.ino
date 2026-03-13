@@ -71,8 +71,10 @@ enum alignment {LEFT, RIGHT, CENTER};
 
 boolean LargeIcon   = true;
 boolean SmallIcon   = false;
-#define Large  20           // For icon drawing
 #define Small  8            // For icon drawing
+#define Large  20           // For icon drawing
+#define XLarge 25           // Extra large for secondary screen
+int iconScaleOverride = 0;  // 0 = use default, >0 = use this scale
 String  Time_str = "--:--:--";
 String  Date_str = "-- --- ----";
 int     wifi_signal, CurrentHour = 0, CurrentMin = 0, CurrentSec = 0, EventCnt = 0, vref = 1100;
@@ -614,6 +616,7 @@ bool DecodeWeather(WiFiClient& json, String Type) {
     //WxConditions[0].Forecast2   = root["weather"][2]["description"].as<char*>(); Serial.println("For2: " + String(WxConditions[0].Forecast2));
     WxConditions[0].Icon        = root["weather"][0]["icon"].as<char*>();        Serial.println("Icon: " + String(WxConditions[0].Icon));
     WxConditions[0].Temperature = root["main"]["temp"].as<float>();              Serial.println("Temp: " + String(WxConditions[0].Temperature));
+    WxConditions[0].Feelslike   = root["main"]["feels_like"].as<float>();        Serial.println("Feel: " + String(WxConditions[0].Feelslike));
     WxConditions[0].Pressure    = root["main"]["pressure"].as<float>();          Serial.println("Pres: " + String(WxConditions[0].Pressure));
     WxConditions[0].Humidity    = root["main"]["humidity"].as<float>();          Serial.println("Humi: " + String(WxConditions[0].Humidity));
     WxConditions[0].Low         = root["main"]["temp_min"].as<float>();          Serial.println("TLow: " + String(WxConditions[0].Low));
@@ -749,22 +752,23 @@ String TitleCase(String text) {
 }
 
 void DisplayWeather() {                          // 4.7" e-paper display is 960x540 resolution
-  DisplayStatusSection(600, 33, wifi_signal);    // Wi-Fi signal strength and Battery voltage (estaba 20)
+  DisplayStatusSection(600, 33, wifi_signal);    // Wi-Fi signal strength and Battery voltage
   DisplayGeneralInfoSection();                   // Top line of the display
-  DisplayDisplayWindSection(137, 150, WxConditions[0].Winddir, WxConditions[0].Windspeed, 100);
-  DisplayAstronomySection(15, 260);               // Astronomy section Sun rise/set, Moon phase and Moon icon (estaba 5 255)
-  DisplayMainWeatherSection(330, 100);           // Centre section of display for Location, temperature, Weather report, current Wx Symbol (estaba 330 110)
-  DisplayWeatherIcon(850, 150);                  // Display weather icon    scale = Large;  // estaba 810 130
-  DisplayForecastSection(280, 220);              // 3hr forecast boxes (estaba 290 220)
+  DisplayDisplayWindSection(137, 160, WxConditions[0].Winddir, WxConditions[0].Windspeed, 100);
+  DisplayAstronomySection(15, 260);              // Astronomy section: Sunrise/set, Moon phase and icon
+  DisplayMainWeatherSection(330, 100);           // Centre section: Location, temperature, Weather report, Wx Symbol
+  DisplayWeatherIcon(850, 170);                  // Display weather icon (scale = Large)
+  DisplayFeelsLike(305, 238);                    // Feels like temperature above forecast
+  DisplayForecastSection(280, 240);              // 3hr forecast boxes
 }
 
 void DisplayGeneralInfoSection() {
-  setFont(OpenSans14B);  //estaba 10B
+  setFont(OpenSans14B);
   // Draw city twice for darker/blacker text
   drawString(20, 13, City, LEFT);
   drawString(20, 13, City, LEFT);
-  setFont(OpenSans10B); //estaba 8B
-  drawString(300, 15, Date_str + "  @ " + Time_str, LEFT); // estaba 300,2
+  setFont(OpenSans10B);
+  drawString(300, 15, Date_str + "  @ " + Time_str, LEFT);
 }
 
 void DisplayWeatherIcon(int x, int y) {
@@ -835,14 +839,14 @@ String WindDegToOrdinalDirection(float winddirection) {
 }
 
 void DisplayTemperatureSection(int x, int y) {
-  setFont(OpenSans24B);  // estaba 18B
-  drawString(x + 20, y, String(WxConditions[0].Temperature, 1) + "°    " + String(WxConditions[0].Humidity, 0) + "%", LEFT);  // estaba 30  LEFT
+  setFont(OpenSans24B);
+  drawString(x + 20, y, String(WxConditions[0].Temperature, 1) + "°    " + String(WxConditions[0].Humidity, 0) + "%", LEFT);
   setFont(OpenSans12B);
-  drawString(x + 150, y + 40, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER); // Show forecast high and Low estaba 10 35
+  drawString(x + 150, y + 40, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER); // High and Low
 }
 
 void DisplayForecastTextSection(int x, int y) {
-  setFont(OpenSans14B); // estaba 12B
+  setFont(OpenSans14B);
   //Wx_Description = WxConditions[0].Main0;          // e.g. typically 'Clouds'
   String Wx_Description = WxConditions[0].Forecast0; // e.g. typically 'overcast clouds' ... you choose which
   Wx_Description.replace(".", ""); // remove any '.'
@@ -866,12 +870,18 @@ void DisplayForecastTextSection(int x, int y) {
 
 void DisplayPressureSection(int x, int y, float pressure, String slope) {
   setFont(OpenSans14B);
-  DrawPressureAndTrend(x - 25, y + 40, pressure, slope);  // estaba 25 10
+  DrawPressureAndTrend(x - 25, y + 40, pressure, slope);
   if (WxConditions[0].Visibility > 0) {
-    Visibility(x + 143, y + 30, String(WxConditions[0].Visibility / 1000.0, 2) + "km");  // estaba 145 y sin +15
-    x += 150; // Draw the text in the same positions if one is zero, otherwise in-line
+    Visibility(x + 143, y + 30, String(WxConditions[0].Visibility / 1000.0, 2) + "km");
+    x += 150; // Offset if visibility shown
   }
-  if (WxConditions[0].Cloudcover > 0) CloudCover(x + 155, y + 28, WxConditions[0].Cloudcover);  // estaba 145 sin +15
+  if (WxConditions[0].Cloudcover > 0) CloudCover(x + 155, y + 28, WxConditions[0].Cloudcover);
+}
+
+void DisplayFeelsLike(int x, int y) {
+  setFont(OpenSans10B);
+  String feelsText = TXT_FEELS_LIKE + ": " + String(WxConditions[0].Feelslike, 1) + "°";
+  drawString(x, y, feelsText, LEFT);
 }
 
 void DisplayForecastWeather(int x, int y, int index) {
@@ -1071,8 +1081,8 @@ void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
 }
 
 void DisplayStatusSection(int x, int y, int rssi) {
-  setFont(OpenSans10B);  // estaba 8B
-  DrawRSSI(x + 295, y + 15, rssi);  // estaba 300 15
+  setFont(OpenSans10B);
+  DrawRSSI(x + 295, y + 15, rssi);
   DrawBattery(x+100, y);
 }
 
@@ -1080,12 +1090,12 @@ void DrawRSSI(int x, int y, int rssi) {
   int WIFIsignal = 0;
   int xpos = 1;
   for (int _rssi = -110; _rssi <= rssi; _rssi = _rssi + 20) {
-    if (_rssi <= -20)  WIFIsignal = 30; //            <-20dbm displays 5-bars estaba 20 30 arriba estaba -100 20
-    if (_rssi <= -40)  WIFIsignal = 24; //  -40dbm to  -21dbm displays 4-bars estaba 40 24
-    if (_rssi <= -60)  WIFIsignal = 18; //  -60dbm to  -41dbm displays 3-bars estaba 60 18
-    if (_rssi <= -80)  WIFIsignal = 12; //  -80dbm to  -61dbm displays 2-bars estaba 80 12
-    if (_rssi <= -100)  WIFIsignal = 6; //  -100dbm to  -81dbm displays 1-bar estaba 100 6
-    if (_rssi <= -100)  WIFIsignal = 6;  // -110dbm to -101dbm displays 1-bar anadido
+    if (_rssi <= -20)  WIFIsignal = 30; // <-20dBm displays 5-bars
+    if (_rssi <= -40)  WIFIsignal = 24; // -40dBm to -21dBm displays 4-bars
+    if (_rssi <= -60)  WIFIsignal = 18; // -60dBm to -41dBm displays 3-bars
+    if (_rssi <= -80)  WIFIsignal = 12; // -80dBm to -61dBm displays 2-bars
+    if (_rssi <= -100) WIFIsignal = 6;  // -100dBm to -81dBm displays 1-bar
+    if (_rssi <= -100) WIFIsignal = 6;  // -110dBm to -101dBm displays 1-bar
     fillRect(x + xpos * 8, y - WIFIsignal, 6, WIFIsignal, Black);
     xpos++;
   }
@@ -1237,7 +1247,10 @@ void addfog(int x, int y, int scale, int linesize, bool IconSize) {
 
 void Sunny(int x, int y, bool IconSize, String IconName) {
   int scale = Small, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1249,7 +1262,10 @@ void Sunny(int x, int y, bool IconSize, String IconName) {
 
 void MostlySunny(int x, int y, bool IconSize, String IconName) {
   int scale = Small, linesize = 5, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1260,7 +1276,10 @@ void MostlySunny(int x, int y, bool IconSize, String IconName) {
 
 void MostlyCloudy(int x, int y, bool IconSize, String IconName) {
   int scale = Small, linesize = 5, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1271,7 +1290,10 @@ void MostlyCloudy(int x, int y, bool IconSize, String IconName) {
 
 void Cloudy(int x, int y, bool IconSize, String IconName) {
   int scale = Small, linesize = 5, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1283,7 +1305,10 @@ void Cloudy(int x, int y, bool IconSize, String IconName) {
 
 void Rain(int x, int y, bool IconSize, String IconName) {
   int scale = Small, linesize = 5, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1294,7 +1319,10 @@ void Rain(int x, int y, bool IconSize, String IconName) {
 
 void ExpectRain(int x, int y, bool IconSize, String IconName) {
   int scale = Small, linesize = 5, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1305,8 +1333,11 @@ void ExpectRain(int x, int y, bool IconSize, String IconName) {
 }
 
 void ChanceRain(int x, int y, bool IconSize, String IconName) {
-  int scale = Small, linesize = 5, Offset = 10;;
-  if (IconSize == LargeIcon) {
+  int scale = Small, linesize = 5, Offset = 10;
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1318,7 +1349,10 @@ void ChanceRain(int x, int y, bool IconSize, String IconName) {
 
 void Tstorms(int x, int y, bool IconSize, String IconName) {
   int scale = Small, linesize = 5, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1329,7 +1363,10 @@ void Tstorms(int x, int y, bool IconSize, String IconName) {
 
 void Snow(int x, int y, bool IconSize, String IconName) {
   int scale = Small, linesize = 5, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1340,7 +1377,10 @@ void Snow(int x, int y, bool IconSize, String IconName) {
 
 void Fog(int x, int y, bool IconSize, String IconName) {
   int scale = Small, linesize = 5, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1351,7 +1391,10 @@ void Fog(int x, int y, bool IconSize, String IconName) {
 
 void Haze(int x, int y, bool IconSize, String IconName) {
   int scale = Small, linesize = 5, Offset = 10;
-  if (IconSize == LargeIcon) {
+  if (iconScaleOverride > 0) {
+    scale = iconScaleOverride;
+    Offset = 45;
+  } else if (IconSize == LargeIcon) {
     scale = Large;
     Offset = 35;
   }
@@ -1418,7 +1461,7 @@ void Nodata(int x, int y, bool IconSize, String IconName) {
 void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode) {
 #define auto_scale_margin 0 // Sets the autoscale increment, so axis steps up fter a change of e.g. 3
 #define y_minor_axis 5      // 5 y-axis division markers
-  setFont(OpenSans9B); // estaba 10B
+  setFont(OpenSans9B);
   int maxYscale = -10000;
   int minYscale =  10000;
   int last_x, last_y;
@@ -1455,21 +1498,26 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
     for (int j = 0; j < number_of_dashes; j++) { // Draw dashed graph grid lines
       if (spacing < y_minor_axis) drawFastHLine((x_pos + 3 + j * gwidth / number_of_dashes), y_pos + (gheight * spacing / y_minor_axis), gwidth / (2 * number_of_dashes), Grey);
     }
-    if ((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing) < 5 || title == TXT_PRESSURE_IN) {
-      drawString(x_pos - 10, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1), RIGHT);
+    float axisValue = Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01;
+    // Use 0 decimals for integer values (like 0, 20, 40, etc.)
+    if (axisValue < 0.1) {
+      drawString(x_pos - 10, y_pos + gheight * spacing / y_minor_axis - 5, "0", RIGHT);
+    }
+    else if (axisValue < 5 || title == TXT_PRESSURE_IN) {
+      drawString(x_pos - 10, y_pos + gheight * spacing / y_minor_axis - 5, String(axisValue, 1), RIGHT);
     }
     else
     {
       if (Y1Min < 1 && Y1Max < 10) {
-        drawString(x_pos - 3, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 1), RIGHT);
+        drawString(x_pos - 3, y_pos + gheight * spacing / y_minor_axis - 5, String(axisValue, 1), RIGHT);
       }
       else {
-        drawString(x_pos - 7, y_pos + gheight * spacing / y_minor_axis - 5, String((Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01), 0), RIGHT);
+        drawString(x_pos - 7, y_pos + gheight * spacing / y_minor_axis - 5, String(axisValue, 0), RIGHT);
       }
     }
   }
   for (int i = 0; i < 3; i++) {
-    drawString(20 + x_pos + gwidth / 3 * i, y_pos + gheight + 2 , String(i) + "d", LEFT); // estaba 20 3 10
+    drawString(20 + x_pos + gwidth / 3 * i, y_pos + gheight + 2 , String(i) + "d", LEFT); // Day labels
     if (i < 2) drawFastVLine(x_pos + gwidth / 3 * i + gwidth / 3, y_pos, gheight, LightGrey);
   }
 }
@@ -1573,10 +1621,12 @@ void DisplayCurrentDetailScreen() {
   // === MIDDLE SECTION: Weather Icon + Details ===
   drawFastHLine(50, 190, SCREEN_WIDTH - 100, Grey);
 
-  // Left: Weather icon
-  DisplayConditionsSection(200, 300, WxConditions[0].Icon, LargeIcon);
+  // Left: Weather icon (extra large)
+  iconScaleOverride = XLarge;
+  DisplayConditionsSection(180, 300, WxConditions[0].Icon, LargeIcon);
+  iconScaleOverride = 0;
   setFont(OpenSans12B);
-  drawString(200, 390, TitleCase(WxConditions[0].Forecast0), CENTER);
+  drawString(180, 370, TitleCase(WxConditions[0].Forecast0), CENTER);
 
   // Right: Visibility, Wind Direction, Clouds
   int rightColLabel = 550, rightColValue = 780;
