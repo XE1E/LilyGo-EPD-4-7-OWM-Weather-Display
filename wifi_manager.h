@@ -26,6 +26,10 @@ Preferences preferences;
 // Flag to force AP mode (stored in preferences)
 bool forceAPMode = false;
 
+// Track web activity to prevent sleep during configuration
+unsigned long lastWebRequestTime = 0;
+const unsigned long WEB_ACTIVITY_TIMEOUT = 120000;  // 2 minutes without web activity
+
 // Runtime config - loaded from preferences or defaults
 struct ConfigData {
   char wifi_ssid[33];
@@ -47,6 +51,7 @@ struct ConfigData {
   int dst_offset;
   int update_interval;      // Weather update interval in minutes
   int sleep_timeout;        // Time before deep sleep in seconds
+  bool keep_screen_on_sleep; // Keep current screen when entering deep sleep
 } config;
 
 // HTML page for configuration - Modern responsive design with tabs
@@ -391,6 +396,14 @@ const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
             <input type="number" name="sleep_timeout" value="%SLEEP_TIME%" min="10" max="300">
             <div class="hint">Tiempo de inactividad antes de dormir (10-300 seg)</div>
           </div>
+          <div class="form-group">
+            <label>Al entrar en Sleep</label>
+            <select name="keep_screen">
+              <option value="0" %KEEP_SCREEN_OFF%>Regresar a pantalla principal</option>
+              <option value="1" %KEEP_SCREEN_ON%>Mantener pantalla actual</option>
+            </select>
+            <div class="hint">Comportamiento al entrar en modo de bajo consumo</div>
+          </div>
         </div>
 
         <div class="divider"></div>
@@ -582,6 +595,7 @@ void loadConfig() {
   config.dst_offset = preferences.getInt("dst", daylightOffset_sec);
   config.update_interval = preferences.getInt("updint", 30);
   config.sleep_timeout = preferences.getInt("sleept", 30);
+  config.keep_screen_on_sleep = preferences.getBool("keepscr", false);
   forceAPMode = preferences.getBool("forceAP", false);
 
   preferences.end();
@@ -610,6 +624,7 @@ void saveConfig() {
   preferences.putInt("dst", config.dst_offset);
   preferences.putInt("updint", config.update_interval);
   preferences.putInt("sleept", config.sleep_timeout);
+  preferences.putBool("keepscr", config.keep_screen_on_sleep);
   preferences.putBool("forceAP", false);  // Clear force AP flag after save
 
   preferences.end();
@@ -668,16 +683,22 @@ String processTemplate(const char* page) {
   html.replace("%METRIC_SEL%", strcmp(config.units, "M") == 0 ? "selected" : "");
   html.replace("%IMPERIAL_SEL%", strcmp(config.units, "I") == 0 ? "selected" : "");
 
+  // Keep screen on sleep selection
+  html.replace("%KEEP_SCREEN_OFF%", config.keep_screen_on_sleep ? "" : "selected");
+  html.replace("%KEEP_SCREEN_ON%", config.keep_screen_on_sleep ? "selected" : "");
+
   return html;
 }
 
 // Web server handlers
 void handleRoot() {
+  lastWebRequestTime = millis();  // Track web activity
   String html = processTemplate(CONFIG_PAGE);
   webServer.send(200, "text/html", html);
 }
 
 void handleSave() {
+  lastWebRequestTime = millis();  // Track web activity
   // Get form values
   strlcpy(config.wifi_ssid, webServer.arg("ssid1").c_str(), sizeof(config.wifi_ssid));
   strlcpy(config.wifi_password, webServer.arg("pass1").c_str(), sizeof(config.wifi_password));
@@ -698,6 +719,7 @@ void handleSave() {
   config.dst_offset = webServer.arg("dst").toInt();
   config.update_interval = webServer.arg("update_interval").toInt();
   config.sleep_timeout = webServer.arg("sleep_timeout").toInt();
+  config.keep_screen_on_sleep = webServer.arg("keep_screen") == "1";
 
   saveConfig();
 
@@ -705,6 +727,7 @@ void handleSave() {
 }
 
 void handleReboot() {
+  lastWebRequestTime = millis();  // Track web activity
   // Save first
   strlcpy(config.wifi_ssid, webServer.arg("ssid1").c_str(), sizeof(config.wifi_ssid));
   strlcpy(config.wifi_password, webServer.arg("pass1").c_str(), sizeof(config.wifi_password));
@@ -725,6 +748,7 @@ void handleReboot() {
   config.dst_offset = webServer.arg("dst").toInt();
   config.update_interval = webServer.arg("update_interval").toInt();
   config.sleep_timeout = webServer.arg("sleep_timeout").toInt();
+  config.keep_screen_on_sleep = webServer.arg("keep_screen") == "1";
 
   saveConfig();
 
@@ -760,6 +784,7 @@ const char RESET_PAGE[] PROGMEM = R"rawliteral(
 )rawliteral";
 
 void handleReset() {
+  lastWebRequestTime = millis();  // Track web activity
   resetConfig();
   webServer.send(200, "text/html", RESET_PAGE);
   delay(1000);
@@ -767,6 +792,7 @@ void handleReset() {
 }
 
 void handleNotFound() {
+  lastWebRequestTime = millis();  // Track web activity
   // Redirect all requests to root (captive portal behavior)
   webServer.sendHeader("Location", "http://" + AP_IP.toString(), true);
   webServer.send(302, "text/plain", "");
@@ -815,6 +841,11 @@ void stopAPMode() {
 
 // Start web server in STA mode (when connected to WiFi)
 bool webServerRunning = false;
+
+bool isWebActive() {
+  if (!webServerRunning) return false;
+  return (millis() - lastWebRequestTime) < WEB_ACTIVITY_TIMEOUT;
+}
 
 void startWebServer() {
   if (webServerRunning) return;

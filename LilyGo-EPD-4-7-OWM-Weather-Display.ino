@@ -120,12 +120,13 @@ const unsigned long AP_RETRY_TIMEOUT = 60000;  // 1 minute timeout to retry WiFi
 void DisplayCurrentDetailScreen();
 void DisplayForecastScreen();
 void DisplayGraphsScreen();
+void DisplayInfoScreen();
 void DisplayWeather();
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize);
 String WindDegToOrdinalDirection(float winddirection);
 String TitleCase(String text);
 String ConvertUnixTime(int unix_time);
-void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode);
+void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode, int title_x_offset = 0);
 float SumOfPrecip(float DataArray[], int readings);
 void drawString(int x, int y, String text, alignment align);
 void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
@@ -141,6 +142,12 @@ void BeginSleep() {
   // Don't sleep while navigating secondary screens
   if (navigationModeActive) {
     Serial.println("Navigation active - skipping sleep");
+    return;
+  }
+
+  // Don't sleep while web config is being accessed
+  if (isWebActive()) {
+    Serial.println("Web config active - skipping sleep");
     return;
   }
 
@@ -314,6 +321,9 @@ void refreshScreenFast() {
     case SCREEN_GRAPHS:
       DisplayGraphsScreen();
       break;
+    case SCREEN_INFO:
+      DisplayInfoScreen();
+      break;
   }
 
   edp_update();
@@ -338,6 +348,9 @@ void refreshScreen() {
       break;
     case SCREEN_GRAPHS:
       DisplayGraphsScreen();
+      break;
+    case SCREEN_INFO:
+      DisplayInfoScreen();
       break;
   }
 
@@ -375,10 +388,19 @@ void handleTouchNavigation() {
     }
   }
 
-  // Check for timeout (30 seconds without touch)
-  if (millis() - lastTouchTime > 30000) {
-    Serial.println("30 second timeout - going to sleep");
-    currentScreen = SCREEN_MAIN;
+  // Check for timeout (configurable seconds without touch)
+  unsigned long timeoutMs = config.sleep_timeout * 1000UL;
+  if (millis() - lastTouchTime > timeoutMs) {
+    // Don't sleep while web config is being accessed
+    if (isWebActive()) {
+      Serial.println("Web config active - postponing sleep");
+      lastTouchTime = millis();  // Reset timeout
+      return;
+    }
+    Serial.println("Timeout - going to sleep");
+    if (!config.keep_screen_on_sleep) {
+      currentScreen = SCREEN_MAIN;
+    }
     navigationModeActive = false;
     refreshScreen();  // Full refresh before sleep
     displayPowerOff();
@@ -484,24 +506,24 @@ void displayAPModeScreen() {
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
 
   setFont(OpenSans24B);
-  drawString(SCREEN_WIDTH / 2, 100, "WiFi Setup Mode", CENTER);
+  drawString(SCREEN_WIDTH / 2, 100, "Modo Configuracion WiFi", CENTER);
 
   setFont(OpenSans12B);
-  drawString(SCREEN_WIDTH / 2, 180, "Connect to WiFi network:", CENTER);
+  drawString(SCREEN_WIDTH / 2, 180, "Conectar a la red WiFi:", CENTER);
 
   setFont(OpenSans18B);
   drawString(SCREEN_WIDTH / 2, 220, AP_SSID, CENTER);
 
   setFont(OpenSans12B);
-  drawString(SCREEN_WIDTH / 2, 270, "Password: " + String(AP_PASSWORD), CENTER);
+  drawString(SCREEN_WIDTH / 2, 270, "Contrasena: " + String(AP_PASSWORD), CENTER);
 
-  drawString(SCREEN_WIDTH / 2, 330, "Then open in browser:", CENTER);
+  drawString(SCREEN_WIDTH / 2, 330, "Luego abrir en navegador:", CENTER);
 
   setFont(OpenSans18B);
   drawString(SCREEN_WIDTH / 2, 370, "http://192.168.4.1", CENTER);
 
   setFont(OpenSans10B);
-  drawString(SCREEN_WIDTH / 2, 470, "Device will restart after saving configuration", CENTER);
+  drawString(SCREEN_WIDTH / 2, 470, "El dispositivo se reiniciara al guardar configuracion", CENTER);
 
   edp_update();
   epd_poweroff_all();
@@ -756,15 +778,16 @@ void DisplayWeather() {                          // 4.7" e-paper display is 960x
   DisplayGeneralInfoSection();                   // Top line of the display
   DisplayDisplayWindSection(137, 160, WxConditions[0].Winddir, WxConditions[0].Windspeed, 100);
   DisplayAstronomySection(15, 260);              // Astronomy section: Sunrise/set, Moon phase and icon
-  DisplayMainWeatherSection(330, 100);           // Centre section: Location, temperature, Weather report, Wx Symbol
-  DisplayWeatherIcon(850, 170);                  // Display weather icon (scale = Large)
-  DisplayFeelsLike(305, 238);                    // Feels like temperature above forecast
+  DisplayMainWeatherSection(305, 100);           // Centre section: Location, temperature, Weather report, Wx Symbol
+  DisplayWeatherIcon(840, 170);                  // Display weather icon (scale = Large)
+  DisplayFeelsLike(280, 238);                    // Feels like temperature above forecast
   DisplayForecastSection(280, 240);              // 3hr forecast boxes
 }
 
 void DisplayGeneralInfoSection() {
   setFont(OpenSans14B);
-  // Draw city twice for darker/blacker text
+  // Draw city multiple times for darker/blacker text
+  drawString(20, 13, City, LEFT);
   drawString(20, 13, City, LEFT);
   drawString(20, 13, City, LEFT);
   setFont(OpenSans10B);
@@ -850,7 +873,8 @@ void DisplayForecastTextSection(int x, int y) {
   //Wx_Description = WxConditions[0].Main0;          // e.g. typically 'Clouds'
   String Wx_Description = WxConditions[0].Forecast0; // e.g. typically 'overcast clouds' ... you choose which
   Wx_Description.replace(".", ""); // remove any '.'
-  int spaceRemaining = 0, p = 0, charCount = 0, Width = 34;
+  if (WxForecast[0].Rainfall > 0) Wx_Description += " (" + String(WxForecast[0].Rainfall, 1) + String((Units == "M" ? "mm" : "in")) + ")";
+  int spaceRemaining = 0, p = 0, charCount = 0, Width = 30;
   while (p < Wx_Description.length()) {
     if (Wx_Description.substring(p, p + 1) == " ") spaceRemaining = p;
     if (charCount > Width - 1) { // '~' is the end of line marker
@@ -860,12 +884,10 @@ void DisplayForecastTextSection(int x, int y) {
     p++;
     charCount++;
   }
-  if (WxForecast[0].Rainfall > 0) Wx_Description += " (" + String(WxForecast[0].Rainfall, 1) + String((Units == "M" ? "mm" : "in")) + ")";
-  //Wx_Description = wordWrap(Wx_Description, lineWidth);
   String Line1 = Wx_Description.substring(0, Wx_Description.indexOf("~"));
   String Line2 = Wx_Description.substring(Wx_Description.indexOf("~") + 1);
-  drawString(x + 30, y + 5, TitleCase(Line1), LEFT);
-  if (Line1 != Line2) drawString(x + 30, y + 30, Line2, LEFT);
+  drawString(x + 28, y + 10, TitleCase(Line1), LEFT);
+  if (Line1 != Line2) drawString(x + 28, y + 35, Line2, LEFT);
 }
 
 void DisplayPressureSection(int x, int y, float pressure, String slope) {
@@ -875,7 +897,7 @@ void DisplayPressureSection(int x, int y, float pressure, String slope) {
     Visibility(x + 143, y + 30, String(WxConditions[0].Visibility / 1000.0, 2) + "km");
     x += 150; // Offset if visibility shown
   }
-  if (WxConditions[0].Cloudcover > 0) CloudCover(x + 155, y + 28, WxConditions[0].Cloudcover);
+  if (WxConditions[0].Cloudcover > 0) CloudCover(x + 163, y + 30, WxConditions[0].Cloudcover);
 }
 
 void DisplayFeelsLike(int x, int y) {
@@ -884,13 +906,26 @@ void DisplayFeelsLike(int x, int y) {
   drawString(x, y, feelsText, LEFT);
 }
 
-void DisplayForecastWeather(int x, int y, int index) {
+// Find first forecast index within 1 hour of current time
+int getFirstRelevantForecastIndex() {
+  time_t now = time(NULL);
+  for (int i = 0; i < max_readings; i++) {
+    long forecastLocal = WxForecast[i].Dt + WxConditions[0].Timezone;
+    // If forecast local time is within 1 hour of now or in the future
+    if (forecastLocal >= now - 3600) {
+      return i;
+    }
+  }
+  return 0;
+}
+
+void DisplayForecastWeather(int x, int y, int displayPos, int dataIndex) {
   int fwidth = 95;
-  x = x + fwidth * index;
-  DisplayConditionsSection(x + fwidth / 2, y + 90, WxForecast[index].Icon, SmallIcon);
+  x = x + fwidth * displayPos;
+  DisplayConditionsSection(x + fwidth / 2, y + 90, WxForecast[dataIndex].Icon, SmallIcon);
   setFont(OpenSans10B);
-  drawString(x + fwidth / 2, y + 30, String(ConvertUnixTime(WxForecast[index].Dt + WxConditions[0].Timezone).substring(0, 5)), CENTER);
-  drawString(x + fwidth / 2, y + 117, String(WxForecast[index].High, 0) + "°/" + String(WxForecast[index].Low, 0) + "°", CENTER);
+  drawString(x + fwidth / 2, y + 30, String(ConvertUnixTime(WxForecast[dataIndex].Dt + WxConditions[0].Timezone).substring(0, 5)), CENTER);
+  drawString(x + fwidth / 2, y + 117, String(WxForecast[dataIndex].High, 0) + "°/" + String(WxForecast[dataIndex].Low, 0) + "°", CENTER);
 }
 
 
@@ -1002,8 +1037,9 @@ void DrawSunsetImage(int x, int y) {
 
 void DisplayForecastSection(int x, int y) {
   const int main_screen_readings = 24;  // 3 days for main screen graphs
-  for(int i = 0; i< min(7, max_readings); i++) {
-    DisplayForecastWeather(x, y, i);
+  int startIdx = getFirstRelevantForecastIndex();
+  for(int i = 0; i < min(7, max_readings - startIdx); i++) {
+    DisplayForecastWeather(x, y, i, startIdx + i);
   }
   int r = 0;
   do { // Pre-load temporary arrays with with data - because C parses by reference and remember that[1] has already been converted to I units
@@ -1020,7 +1056,7 @@ void DisplayForecastSection(int x, int y) {
   int gap = gwidth + gx;
   // (x,y,width,height,MinValue, MaxValue, Title, Data Array, AutoScale, ChartMode) - Using 24 readings (3 days) for main screen
   DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, main_screen_readings, autoscale_on, barchart_off);
-  DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30,    Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, main_screen_readings, autoscale_on, barchart_off);
+  DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, main_screen_readings, autoscale_on, barchart_off, 15);
   DrawGraph(gx + 2 * gap, gy, gwidth, gheight, 0, 100,   TXT_HUMIDITY_PERCENT, humidity_readings, main_screen_readings, autoscale_off, barchart_off);
   if (SumOfPrecip(rain_readings, main_screen_readings) >= SumOfPrecip(snow_readings, main_screen_readings))
     DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, main_screen_readings, autoscale_on, barchart_on);
@@ -1066,17 +1102,24 @@ void DrawSegment(int x, int y, int o1, int o2, int o3, int o4, int o11, int o12,
 
 void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
   drawString(x + 25, y - 10, String(pressure, (Units == "M" ? 0 : 1)) + (Units == "M" ? "hPa" : "in"), LEFT);
-  if      (slope == "+") {
-    DrawSegment(x, y, 0, 0, 8, -8, 8, -8, 16, 0);
-    DrawSegment(x - 1, y, 0, 0, 8, -8, 8, -8, 16, 0);
+  // Arrow with shaft and head for pressure trend
+  int ax = x + 8;  // Arrow center x
+  int ay = y - 5;  // Arrow center y
+  if (slope == "+") {
+    // Upward arrow
+    fillRect(ax - 2, ay - 1, 5, 14, Black);  // Shaft (lowered 5px)
+    fillTriangle(ax, ay - 7, ax - 6, ay + 1, ax + 6, ay + 1, Black);  // Head (lowered 5px)
   }
-  else if (slope == "0") {
-    DrawSegment(x, y, 8, -8, 16, 0, 8, 8, 16, 0);
-    DrawSegment(x - 1, y, 8, -8, 16, 0, 8, 8, 16, 0);
+  else if (slope == "0" || slope == "=") {
+    // Rightward arrow (stable) - centered with text
+    int hay = y;  // Lowered 10px
+    fillRect(ax - 8, hay - 3, 16, 6, Black);  // Shaft (wider)
+    fillTriangle(ax + 14, hay, ax + 4, hay - 8, ax + 4, hay + 8, Black);  // Head (larger)
   }
   else if (slope == "-") {
-    DrawSegment(x, y, 0, 0, 8, 8, 8, 8, 16, 0);
-    DrawSegment(x - 1, y, 0, 0, 8, 8, 8, 8, 16, 0);
+    // Downward arrow (raised 5px)
+    fillRect(ax - 2, ay - 11, 5, 14, Black);  // Shaft
+    fillTriangle(ax, ay + 7, ax - 6, ay - 1, ax + 6, ay - 1, Black);  // Head
   }
 }
 
@@ -1404,15 +1447,15 @@ void Haze(int x, int y, bool IconSize, String IconName) {
 }
 
 void CloudCover(int x, int y, int CCover) {
-  addcloud(x - 9, y + 2+5, Small * 0.3, 2); // Cloud top left
-  addcloud(x + 3, y - 2+5, Small * 0.3, 2); // Cloud top right
-  addcloud(x, y + 10+5, Small * 0.6, 2); // Main cloud
-  drawString(x + 25, y, String(CCover) + "%", LEFT);
+  addcloud(x - 9, y + 2+5, Small * 0.4, 2); // Cloud top left
+  addcloud(x + 3, y - 2+5, Small * 0.4, 2); // Cloud top right
+  addcloud(x, y + 10+5, Small * 0.7, 2); // Main cloud
+  drawString(x + 30, y, String(CCover) + "%", LEFT);
 }
 
 void Visibility(int x, int y, String Visi) {
-  float start_angle = 0.52, end_angle = 2.61, Offset = 8;
-  int r = 14;
+  float start_angle = 0.52, end_angle = 2.61, Offset = 10;
+  int r = 16;
   for (float i = start_angle; i < end_angle; i = i + 0.05) {
     drawPixel(x + r * cos(i), y - r / 2 + r * sin(i) + Offset, Black);
     drawPixel(x + r * cos(i), 1 + y - r / 2 + r * sin(i) + Offset, Black);
@@ -1458,7 +1501,7 @@ void Nodata(int x, int y, bool IconSize, String IconName) {
     If called with Y!_Max value of 500 and the data never goes above 500, then autoscale will retain a 0-500 Y scale, if on, the scale increases/decreases to match the data.
     auto_scale_margin, e.g. if set to 1000 then autoscale increments the scale by 1000 steps.
 */
-void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode) {
+void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode, int title_x_offset) {
 #define auto_scale_margin 0 // Sets the autoscale increment, so axis steps up fter a change of e.g. 3
 #define y_minor_axis 5      // 5 y-axis division markers
   setFont(OpenSans9B);
@@ -1479,13 +1522,30 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
   // Draw the graph
   last_x = x_pos + 1;
   last_y = y_pos + (Y1Max - constrain(DataArray[1], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight;
-  drawRect(x_pos, y_pos, gwidth + 3, gheight + 2, Grey);
-  drawString(x_pos - 20 + gwidth / 2, y_pos - 28, title, CENTER);
+  drawRect(x_pos, y_pos, gwidth + 3, gheight + 2, DarkGrey);
+  drawString(x_pos - 20 + gwidth / 2 + title_x_offset, y_pos - 28, title, CENTER);
+
+  // Draw alternating background bands FIRST (very light grey)
+  for (int spacing = 0; spacing < y_minor_axis; spacing++) {
+    if (spacing % 2 == 1) {  // Alternate bands
+      int bandY = y_pos + (gheight * spacing / y_minor_axis);
+      int bandH = gheight / y_minor_axis;
+      fillRect(x_pos + 1, bandY, gwidth, bandH, 0xDD);  // Very light grey background
+    }
+  }
+  // Draw dashed horizontal grid lines
+  const int number_of_dashes = 20;
+  for (int spacing = 0; spacing < y_minor_axis; spacing++) {
+    for (int j = 0; j < number_of_dashes; j++) {
+      drawFastHLine((x_pos + 3 + j * gwidth / number_of_dashes), y_pos + (gheight * spacing / y_minor_axis), gwidth / (2 * number_of_dashes), Grey);
+    }
+  }
+  // Draw data lines ON TOP
   for (int gx = 0; gx < readings; gx++) {
     x2 = x_pos + gx * gwidth / (readings - 1) - 1 ; // max_readings is the global variable that sets the maximum data that can be plotted
     y2 = y_pos + (Y1Max - constrain(DataArray[gx], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight + 1;
     if (barchart_mode) {
-      fillRect(last_x + 2, y2, (gwidth / readings) - 1, y_pos + gheight - y2 + 2, Black);
+      fillRect(last_x + 2, y2, (gwidth / readings) - 1, y_pos + gheight - y2 + 2, LightGrey);
     } else {
       drawLine(last_x, last_y - 1, x2, y2 - 1, Black); // Two lines for hi-res display
       drawLine(last_x, last_y, x2, y2, Black);
@@ -1493,11 +1553,8 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
     last_x = x2;
     last_y = y2;
   }
-  const int number_of_dashes = 20;
+  // Draw axis values
   for (int spacing = 0; spacing <= y_minor_axis; spacing++) {
-    for (int j = 0; j < number_of_dashes; j++) { // Draw dashed graph grid lines
-      if (spacing < y_minor_axis) drawFastHLine((x_pos + 3 + j * gwidth / number_of_dashes), y_pos + (gheight * spacing / y_minor_axis), gwidth / (2 * number_of_dashes), Grey);
-    }
     float axisValue = Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis * spacing + 0.01;
     // Use 0 decimals for integer values (like 0, 20, 40, etc.)
     if (axisValue < 0.1) {
@@ -1516,9 +1573,16 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
       }
     }
   }
-  for (int i = 0; i < 3; i++) {
-    drawString(20 + x_pos + gwidth / 3 * i, y_pos + gheight + 2 , String(i) + "d", LEFT); // Day labels
-    if (i < 2) drawFastVLine(x_pos + gwidth / 3 * i + gwidth / 3, y_pos, gheight, LightGrey);
+  // Day labels - dynamic based on readings (8 readings per day)
+  int numDays = readings / 8;
+  if (numDays < 1) numDays = 1;
+  for (int i = 0; i < numDays; i++) {
+    int sectionWidth = gwidth / numDays;
+    int labelX = x_pos + sectionWidth * i + sectionWidth / 2;
+    drawString(labelX, y_pos + gheight + 2, String(i) + "d", CENTER);
+    if (i < numDays - 1) {
+      drawFastVLine(x_pos + sectionWidth * (i + 1), y_pos, gheight, Grey);
+    }
   }
 }
 
@@ -1626,22 +1690,57 @@ void DisplayCurrentDetailScreen() {
   DisplayConditionsSection(180, 300, WxConditions[0].Icon, LargeIcon);
   iconScaleOverride = 0;
   setFont(OpenSans12B);
-  drawString(180, 370, TitleCase(WxConditions[0].Forecast0), CENTER);
+  String wxDesc = WxConditions[0].Forecast0;
 
-  // Right: Visibility, Wind Direction, Clouds
-  int rightColLabel = 550, rightColValue = 780;
-  int row1Y = 230, row2Y = 300, row3Y = 370;
+  // Word wrap with 20 char limit per line, max 3 lines
+  int lineWidth = 20;
+  String lines[3] = {"", "", ""};
+  int lineNum = 0;
+  int charCount = 0;
+  String word = "";
+
+  for (int i = 0; i <= wxDesc.length(); i++) {
+    char c = (i < wxDesc.length()) ? wxDesc.charAt(i) : ' ';
+    if (c == ' ') {
+      if (charCount + word.length() > lineWidth && charCount > 0) {
+        lineNum++;
+        if (lineNum >= 3) break;
+        charCount = 0;
+      }
+      if (charCount > 0) {
+        lines[lineNum] += " ";
+        charCount++;
+      }
+      lines[lineNum] += word;
+      charCount += word.length();
+      word = "";
+    } else {
+      word += c;
+    }
+  }
+
+  int descX = 35;
+  int descY = 350;
+  drawString(descX, descY, TitleCase(lines[0]), LEFT);
+  if (lines[1].length() > 0) drawString(descX, descY + 25, TitleCase(lines[1]), LEFT);
+  if (lines[2].length() > 0) drawString(descX, descY + 50, TitleCase(lines[2]), LEFT);
+
+  // Right: Visibility, Wind, Clouds, Feels Like
+  int rightColLabel = 675, rightColValue = 805;
+  int row1Y = 225, row2Y = 270, row3Y = 315, row4Y = 360;
 
   setFont(OpenSans12B);
   drawString(rightColLabel, row1Y, TXT_VISIBILITY + ":", RIGHT);
-  drawString(rightColLabel, row2Y, TXT_WIND_DIR + ":", RIGHT);
+  drawString(rightColLabel, row2Y, TXT_WIND + ":", RIGHT);
   drawString(rightColLabel, row3Y, TXT_CLOUDINESS + ":", RIGHT);
+  drawString(rightColLabel, row4Y, TXT_FEELS_LIKE + ":", RIGHT);
 
   setFont(OpenSans18B);
   float visKm = WxConditions[0].Visibility / 1000.0;
   drawString(rightColValue, row1Y - 5, String(visKm, 1) + " km", CENTER);
-  drawString(rightColValue, row2Y - 5, WindDegToOrdinalDirection(WxConditions[0].Winddir) + " " + String(WxConditions[0].Windspeed, 1) + ((Units == "M") ? " m/s" : " mph"), CENTER);
+  drawString(rightColValue, row2Y - 5, String(WxConditions[0].Windspeed, 1) + ((Units == "M") ? " m/s" : " mph"), CENTER);
   drawString(rightColValue, row3Y - 5, String(WxConditions[0].Cloudcover) + "%", CENTER);
+  drawString(rightColValue, row4Y - 5, String(WxConditions[0].Feelslike, 1) + " " + tempUnit, CENTER);
 
   // === BOTTOM SECTION: Sunrise, Sunset, Rain Probability ===
   drawFastHLine(50, 420, SCREEN_WIDTH - 100, Grey);
@@ -1675,29 +1774,31 @@ void DisplayForecastScreen() {
   setFont(OpenSans12B);
   drawString(SCREEN_WIDTH / 2, 100, TXT_NEXT_24H, CENTER);
 
-  int hourlyY = 130;
+  int hourlyY = 145;
   int hourlyWidth = SCREEN_WIDTH / 8;  // 120 pixels each
-  for (int i = 0; i < min(8, max_readings); i++) {
+  int startIdx = getFirstRelevantForecastIndex();
+  for (int i = 0; i < min(8, max_readings - startIdx); i++) {
+    int dataIdx = startIdx + i;
     int xPos = hourlyWidth / 2 + i * hourlyWidth;
 
     setFont(OpenSans10B);
-    String timeStr = ConvertUnixTime(WxForecast[i].Dt + WxConditions[0].Timezone).substring(0, 5);
+    String timeStr = ConvertUnixTime(WxForecast[dataIdx].Dt + WxConditions[0].Timezone).substring(0, 5);
     drawString(xPos, hourlyY, timeStr, CENTER);
 
-    DisplayConditionsSection(xPos, hourlyY + 65, WxForecast[i].Icon, SmallIcon);
+    DisplayConditionsSection(xPos, hourlyY + 65, WxForecast[dataIdx].Icon, SmallIcon);
 
     setFont(OpenSans10B);
-    drawString(xPos, hourlyY + 105, String(WxForecast[i].High, 0) + "/" + String(WxForecast[i].Low, 0), CENTER);
+    drawString(xPos, hourlyY + 105, String(WxForecast[dataIdx].High, 0) + "°/" + String(WxForecast[dataIdx].Low, 0) + "°", CENTER);
   }
 
   // Divider
-  drawFastHLine(50, 260, SCREEN_WIDTH - 100, Grey);
+  drawFastHLine(50, 275, SCREEN_WIDTH - 100, Grey);
 
   // === SECTION 2: 5-day forecast - 5 columns ===
   setFont(OpenSans12B);
-  drawString(SCREEN_WIDTH / 2, 285, TXT_5DAY_OUTLOOK, CENTER);
+  drawString(SCREEN_WIDTH / 2, 300, TXT_5DAY_OUTLOOK, CENTER);
 
-  int dailyY = 320;
+  int dailyY = 335;
   int dailyWidth = SCREEN_WIDTH / 5;  // 192 pixels each
 
   for (int day = 0; day < 5; day++) {
@@ -1729,7 +1830,7 @@ void DisplayForecastScreen() {
 
     // Temperature
     setFont(OpenSans12B);
-    drawString(xPos, dailyY + 120, String(dayHigh, 0) + "/" + String(dayLow, 0), CENTER);
+    drawString(xPos, dailyY + 120, String(dayHigh, 0) + "°/" + String(dayLow, 0) + "°", CENTER);
 
     // Rain if any
     if (dayRain > 0.1) {
@@ -1748,6 +1849,7 @@ void DisplayGraphsScreen() {
   // Title
   setFont(OpenSans18B);
   drawString(SCREEN_WIDTH / 2, 50, TXT_WEATHER_TRENDS, CENTER);
+  drawFastHLine(150, 85, SCREEN_WIDTH - 300, Grey);
 
   // Prepare data
   for (int r = 0; r < max_readings; r++) {
@@ -1766,7 +1868,7 @@ void DisplayGraphsScreen() {
 
   // Centered 2x2 grid of graphs
   int gwidth = 320, gheight = 150;
-  int hgap = 60, vgap = 65;
+  int hgap = 120, vgap = 65;
   int totalW = gwidth * 2 + hgap;  // 700
   int totalH = gheight * 2 + vgap; // 335
   int gx1 = (SCREEN_WIDTH - totalW) / 2;  // 130
@@ -1802,5 +1904,143 @@ void DisplayGraphsScreen() {
       DrawGraph(gx2, gy2, gwidth, gheight, 0, 1.2, TXT_SNOWFALL_IN, snow_readings, max_readings, autoscale_on, barchart_on);
   }
 
+}
+
+// Screen 5: System Information
+void DisplayInfoScreen() {
+  // Date/Time same format and position as main screen
+  setFont(OpenSans10B);
+  drawString(300, 15, Date_str + "  @ " + Time_str, LEFT);
+
+  // Title
+  setFont(OpenSans18B);
+  drawString(SCREEN_WIDTH / 2, 50, TXT_SYSTEM_INFO, CENTER);
+  drawFastHLine(150, 85, SCREEN_WIDTH - 300, Grey);
+
+  int col1X = 50;    // Labels
+  int col2X = 250;   // Values column 1
+  int col3X = 500;   // Labels column 2
+  int col4X = 700;   // Values column 2
+  int rowH = 28;     // Row height
+  int startY = 110;
+
+  setFont(OpenSans10B);
+
+  // === LEFT COLUMN ===
+  int row = 0;
+
+  // Software Version
+  drawString(col1X, startY + row * rowH, "Version:", LEFT);
+  drawString(col2X, startY + row * rowH, version, LEFT);
+  row++;
+
+  // Build Date
+  drawString(col1X, startY + row * rowH, "Compilado:", LEFT);
+  drawString(col2X, startY + row * rowH, String(__DATE__) + " " + String(__TIME__), LEFT);
+  row++;
+
+  // Memory Info
+  drawString(col1X, startY + row * rowH, "Heap Libre:", LEFT);
+  drawString(col2X, startY + row * rowH, String(ESP.getFreeHeap() / 1024) + " KB", LEFT);
+  row++;
+
+  drawString(col1X, startY + row * rowH, "Heap Total:", LEFT);
+  drawString(col2X, startY + row * rowH, String(ESP.getHeapSize() / 1024) + " KB", LEFT);
+  row++;
+
+  drawString(col1X, startY + row * rowH, "PSRAM Libre:", LEFT);
+  drawString(col2X, startY + row * rowH, String(ESP.getFreePsram() / 1024) + " KB", LEFT);
+  row++;
+
+  // WiFi Info
+  row++;  // Blank row
+  drawString(col1X, startY + row * rowH, "WiFi SSID:", LEFT);
+  drawString(col2X, startY + row * rowH, WiFi.isConnected() ? WiFi.SSID() : "Desconectado", LEFT);
+  row++;
+
+  drawString(col1X, startY + row * rowH, "IP Local:", LEFT);
+  drawString(col2X, startY + row * rowH, WiFi.isConnected() ? WiFi.localIP().toString() : "--", LEFT);
+  row++;
+
+  drawString(col1X, startY + row * rowH, "Senal WiFi:", LEFT);
+  drawString(col2X, startY + row * rowH, WiFi.isConnected() ? String(WiFi.RSSI()) + " dBm" : "--", LEFT);
+  row++;
+
+  // Location
+  row++;  // Blank row
+  drawString(col1X, startY + row * rowH, "Ciudad:", LEFT);
+  drawString(col2X, startY + row * rowH, String(config.city), LEFT);
+  row++;
+
+  drawString(col1X, startY + row * rowH, "Coordenadas:", LEFT);
+  drawString(col2X, startY + row * rowH, String(config.latitude) + ", " + String(config.longitude), LEFT);
+  row++;
+
+  drawString(col1X, startY + row * rowH, "Zona Horaria:", LEFT);
+  drawString(col2X, startY + row * rowH, String(config.timezone), LEFT);
+  row++;
+
+  // === RIGHT COLUMN ===
+  row = 0;
+
+  // Config
+  drawString(col3X, startY + row * rowH, "Idioma:", LEFT);
+  String langStr = strcmp(config.language, "ES") == 0 ? "Espanol" :
+                   strcmp(config.language, "EN") == 0 ? "English" : "Francais";
+  drawString(col4X, startY + row * rowH, langStr, LEFT);
+  row++;
+
+  drawString(col3X, startY + row * rowH, "Unidades:", LEFT);
+  drawString(col4X, startY + row * rowH, strcmp(config.units, "M") == 0 ? "Metrico" : "Imperial", LEFT);
+  row++;
+
+  drawString(col3X, startY + row * rowH, "Hemisferio:", LEFT);
+  drawString(col4X, startY + row * rowH, strcmp(config.hemisphere, "north") == 0 ? "Norte" : "Sur", LEFT);
+  row++;
+
+  drawString(col3X, startY + row * rowH, "Pronostico:", LEFT);
+  drawString(col4X, startY + row * rowH, String(config.forecast_days) + " dias", LEFT);
+  row++;
+
+  row++;  // Blank row
+
+  // System Config
+  drawString(col3X, startY + row * rowH, "Intervalo Actualiz:", LEFT);
+  drawString(col4X, startY + row * rowH, String(config.update_interval) + " min", LEFT);
+  row++;
+
+  drawString(col3X, startY + row * rowH, "Timeout Sleep:", LEFT);
+  drawString(col4X, startY + row * rowH, String(config.sleep_timeout) + " seg", LEFT);
+  row++;
+
+  drawString(col3X, startY + row * rowH, "Al Dormir:", LEFT);
+  drawString(col4X, startY + row * rowH, config.keep_screen_on_sleep ? "Mantener pantalla" : "Ir a principal", LEFT);
+  row++;
+
+  row++;  // Blank row
+
+  // API Info
+  drawString(col3X, startY + row * rowH, "API Key:", LEFT);
+  String apiKeyMasked = String(config.api_key).substring(0, 8) + "...";
+  drawString(col4X, startY + row * rowH, apiKeyMasked, LEFT);
+  row++;
+
+  row++;  // Blank row
+
+  // Web Config URL
+  drawString(col3X, startY + row * rowH, "Config Web:", LEFT);
+  if (WiFi.isConnected()) {
+    drawString(col4X, startY + row * rowH, "http://" + WiFi.localIP().toString(), LEFT);
+  } else {
+    drawString(col4X, startY + row * rowH, "WiFi desconectado", LEFT);
+  }
+  row++;
+
+  // Footer - Uptime
+  setFont(OpenSans8B);
+  unsigned long uptime = millis() / 1000;
+  int uptimeMin = (uptime / 60) % 60;
+  int uptimeSec = uptime % 60;
+  drawString(SCREEN_WIDTH / 2, 510, "Tiempo activo: " + String(uptimeMin) + "m " + String(uptimeSec) + "s", CENTER);
 }
 

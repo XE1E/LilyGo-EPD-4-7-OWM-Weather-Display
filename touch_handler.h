@@ -14,7 +14,8 @@ enum ScreenState {
   SCREEN_MAIN = 0,
   SCREEN_CURRENT_DETAIL,
   SCREEN_FORECAST,
-  SCREEN_GRAPHS
+  SCREEN_GRAPHS,
+  SCREEN_INFO
 };
 
 // Touch zone structure
@@ -23,8 +24,8 @@ struct TouchZone {
   ScreenState targetScreen;
 };
 
-// Global state variables
-ScreenState currentScreen = SCREEN_MAIN;
+// Global state variables (RTC memory persists through deep sleep)
+RTC_DATA_ATTR ScreenState currentScreen = SCREEN_MAIN;
 unsigned long lastTouchTime = 0;
 unsigned long navigationStartTime = 0;
 bool navigationModeActive = false;
@@ -35,8 +36,11 @@ const unsigned long MAX_NAVIGATION_TIME_MS = 300000; // 5 minutes max
 // Main screen touch zones - adjusted for actual touch Y range
 // Touch Y values appear compressed, adjusted boundaries accordingly
 const TouchZone mainScreenZones[] = {
-  // Physical top 40% - current conditions (Y 180-540)
-  {0, 180, 960, 540, SCREEN_CURRENT_DETAIL},
+  // Moon icon area - System info (X 0-150, Y 180-300)
+  {0, 180, 150, 300, SCREEN_INFO},
+  // Physical top 40% - current conditions (Y 180-540, excluding moon area)
+  {150, 180, 960, 540, SCREEN_CURRENT_DETAIL},
+  {0, 300, 150, 540, SCREEN_CURRENT_DETAIL},
   // Physical middle 30% - 5-day forecast (Y 90-180)
   {0, 90, 960, 180, SCREEN_FORECAST},
   // Physical bottom 30% - 5-day graphs (Y 0-90)

@@ -165,7 +165,8 @@ const char* TXT_CURRENT_CONDITIONS_ARR[] = { "Condiciones Actuales", "Current Co
 const char* TXT_5DAY_FORECAST_ARR[] = { "Pronostico", "Forecast", "Previsions" };
 const char* TXT_WEATHER_TRENDS_ARR[] = { "Historial del Clima", "Weather History", "Historique Meteo" };
 const char* TXT_NEXT_24H_ARR[] = { "Proximas 24 Horas", "Next 24 Hours", "Prochaines 24 Heures" };
-const char* TXT_5DAY_OUTLOOK_ARR[] = { "Pronostico 5 Dias", "5 Day Outlook", "Previsions 5 Jours" };
+const char* TXT_5DAY_OUTLOOK_ARR[] = { "Proximos 5 Dias", "Next 5 Days", "Prochains 5 Jours" };
+const char* TXT_SYSTEM_INFO_ARR[] = { "Informacion del Sistema", "System Information", "Informations Systeme" };
 
 #define TXT_BACK String(TXT_BACK_ARR[currentLang])
 #define TXT_CURRENT_CONDITIONS String(TXT_CURRENT_CONDITIONS_ARR[currentLang])
@@ -173,6 +174,7 @@ const char* TXT_5DAY_OUTLOOK_ARR[] = { "Pronostico 5 Dias", "5 Day Outlook", "Pr
 #define TXT_WEATHER_TRENDS String(TXT_WEATHER_TRENDS_ARR[currentLang])
 #define TXT_NEXT_24H String(TXT_NEXT_24H_ARR[currentLang])
 #define TXT_5DAY_OUTLOOK String(TXT_5DAY_OUTLOOK_ARR[currentLang])
+#define TXT_SYSTEM_INFO String(TXT_SYSTEM_INFO_ARR[currentLang])
 
 // ============== DISPLAY LABELS ==============
 const char* TXT_HUMIDITY_ARR[] = { "Humedad", "Humidity", "Humidite" };

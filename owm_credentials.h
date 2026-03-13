@@ -30,7 +30,7 @@ String apikey       = "53bcaef6034d4d98b5e25b877245ae62";                     //
 const char server[] = "api.openweathermap.org";
 
 //Set your location 
-String City             = "CDMX";                     // Your home city name
+String City             = "Ciudad de Mexico";                     // Your home city name
 String Latitude         = "19.3803";                        // Latitude of your location in decimal degrees
 String Longitude        = "-99.1746";                         // Longitude of your location in decimal degrees
 
