@@ -1,7 +1,8 @@
 #ifndef WEATHER_HISTORY_H
 #define WEATHER_HISTORY_H
 
-#include <SPIFFS.h>
+#include <FFat.h>
+#include <esp_heap_caps.h>
 
 // Maximum readings to store (at 10 min intervals = ~7 days)
 #define MAX_HISTORY_READINGS 1000
@@ -17,40 +18,46 @@ struct WeatherReading {
   int16_t feelslike;     // Feels like * 10
 };
 
-// History buffer
-WeatherReading historyBuffer[MAX_HISTORY_READINGS];
+// History buffer - allocated in PSRAM to save regular RAM
+WeatherReading* historyBuffer = nullptr;
 int historyCount = 0;
 int historyIndex = 0;  // Next write position (circular buffer)
 bool historyInitialized = false;
 
-// Initialize SPIFFS and load history
+// Initialize FFat and load history
 bool initWeatherHistory() {
-  if (!SPIFFS.begin(true)) {  // true = format if failed
-    Serial.println("SPIFFS mount failed!");
+  // Allocate buffer in PSRAM
+  if (historyBuffer == nullptr) {
+    historyBuffer = (WeatherReading*)heap_caps_calloc(MAX_HISTORY_READINGS, sizeof(WeatherReading), MALLOC_CAP_SPIRAM);
+    if (historyBuffer == nullptr) {
+      Serial.println("ERROR: Failed to allocate history buffer!");
+      return false;
+    }
+  }
+
+  if (!FFat.begin(true)) {
+    Serial.println("FFat mount failed!");
     return false;
   }
 
-  Serial.println("SPIFFS mounted successfully");
-  Serial.printf("SPIFFS Total: %d bytes, Used: %d bytes\n",
-                SPIFFS.totalBytes(), SPIFFS.usedBytes());
-
   // Load existing history
-  if (SPIFFS.exists(HISTORY_FILE)) {
-    File file = SPIFFS.open(HISTORY_FILE, "r");
+  if (FFat.exists(HISTORY_FILE)) {
+    File file = FFat.open(HISTORY_FILE, "r");
     if (file) {
-      // Read header (count and index)
       file.read((uint8_t*)&historyCount, sizeof(historyCount));
       file.read((uint8_t*)&historyIndex, sizeof(historyIndex));
 
-      // Read data
-      int toRead = min(historyCount, MAX_HISTORY_READINGS);
-      file.read((uint8_t*)historyBuffer, toRead * sizeof(WeatherReading));
+      // Validate count
+      if (historyCount < 0 || historyCount > MAX_HISTORY_READINGS) {
+        historyCount = 0;
+        historyIndex = 0;
+      } else if (historyCount > 0) {
+        int toRead = min(historyCount, MAX_HISTORY_READINGS);
+        file.read((uint8_t*)historyBuffer, toRead * sizeof(WeatherReading));
+      }
       file.close();
-
-      Serial.printf("Loaded %d history readings\n", historyCount);
     }
   } else {
-    Serial.println("No history file found, starting fresh");
     historyCount = 0;
     historyIndex = 0;
   }
@@ -59,32 +66,24 @@ bool initWeatherHistory() {
   return true;
 }
 
-// Save history to SPIFFS
+// Save history to FFat
 bool saveWeatherHistory() {
-  if (!historyInitialized) return false;
+  if (!historyInitialized || historyBuffer == nullptr) return false;
 
-  File file = SPIFFS.open(HISTORY_FILE, "w");
-  if (!file) {
-    Serial.println("Failed to open history file for writing");
-    return false;
-  }
+  File file = FFat.open(HISTORY_FILE, "w");
+  if (!file) return false;
 
-  // Write header
   file.write((uint8_t*)&historyCount, sizeof(historyCount));
   file.write((uint8_t*)&historyIndex, sizeof(historyIndex));
-
-  // Write data
   int toWrite = min(historyCount, MAX_HISTORY_READINGS);
   file.write((uint8_t*)historyBuffer, toWrite * sizeof(WeatherReading));
   file.close();
-
-  Serial.printf("Saved %d history readings\n", historyCount);
   return true;
 }
 
 // Add a new reading to history
 void addWeatherReading(float temp, float humidity, float pressure, float rainfall, float feelslike) {
-  if (!historyInitialized) return;
+  if (!historyInitialized || historyBuffer == nullptr) return;
 
   WeatherReading reading;
   reading.timestamp = time(nullptr);
@@ -94,7 +93,6 @@ void addWeatherReading(float temp, float humidity, float pressure, float rainfal
   reading.rainfall = (uint16_t)(rainfall * 100);
   reading.feelslike = (int16_t)(feelslike * 10);
 
-  // Add to circular buffer
   historyBuffer[historyIndex] = reading;
   historyIndex = (historyIndex + 1) % MAX_HISTORY_READINGS;
 
@@ -102,16 +100,12 @@ void addWeatherReading(float temp, float humidity, float pressure, float rainfal
     historyCount++;
   }
 
-  Serial.printf("Added reading: T=%.1f, H=%.0f, P=%.0f, R=%.2f (total: %d)\n",
-                temp, humidity, pressure, rainfall, historyCount);
-
-  // Save to SPIFFS
   saveWeatherHistory();
 }
 
 // Get reading at index (0 = oldest, historyCount-1 = newest)
 bool getWeatherReading(int index, WeatherReading &reading) {
-  if (index < 0 || index >= historyCount) return false;
+  if (historyBuffer == nullptr || index < 0 || index >= historyCount) return false;
 
   // Calculate actual buffer position
   int bufferPos;
@@ -179,10 +173,9 @@ float getHistoryDays() {
 void clearWeatherHistory() {
   historyCount = 0;
   historyIndex = 0;
-  if (SPIFFS.exists(HISTORY_FILE)) {
-    SPIFFS.remove(HISTORY_FILE);
+  if (FFat.exists(HISTORY_FILE)) {
+    FFat.remove(HISTORY_FILE);
   }
-  Serial.println("Weather history cleared");
 }
 
 #endif // WEATHER_HISTORY_H

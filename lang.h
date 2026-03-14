@@ -23,8 +23,8 @@ void setLanguage(const char* lang) {
 }
 
 // ============== TEMPERATURE / HUMIDITY ==============
-const char* TXT_TEMPERATURE_C_ARR[] = { "Temperatura (C)", "Temperature (C)", "Temperature (C)" };
-const char* TXT_TEMPERATURE_F_ARR[] = { "Temperatura (F)", "Temperature (F)", "Temperature (F)" };
+const char* TXT_TEMPERATURE_C_ARR[] = { "Temperatura (°C)", "Temperature (°C)", "Temperature (°C)" };
+const char* TXT_TEMPERATURE_F_ARR[] = { "Temperatura (°F)", "Temperature (°F)", "Temperature (°F)" };
 const char* TXT_HUMIDITY_PERCENT_ARR[] = { "Humedad (%)", "Humidity (%)", "Humidite (%)" };
 
 #define TXT_TEMPERATURE_C String(TXT_TEMPERATURE_C_ARR[currentLang])

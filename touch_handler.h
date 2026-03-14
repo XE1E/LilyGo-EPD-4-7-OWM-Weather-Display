@@ -30,6 +30,7 @@ RTC_DATA_ATTR ScreenState currentScreen = SCREEN_MAIN;
 unsigned long lastTouchTime = 0;
 unsigned long navigationStartTime = 0;
 bool navigationModeActive = false;
+bool historyShowWeek = false;  // false = 48h, true = 1 week
 
 const unsigned long SCREEN_TIMEOUT_MS = 30000;      // 30 seconds
 const unsigned long MAX_NAVIGATION_TIME_MS = 300000; // 5 minutes max
@@ -218,8 +219,9 @@ bool readTouchPoint(TouchPoint &point) {
   return false;
 }
 
-// Special return value for deep clean action
+// Special return values for actions
 #define SCREEN_CLEAN_ACTION 99
+#define SCREEN_HISTORY_TOGGLE 98
 
 // Check which zone was touched
 ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
@@ -233,6 +235,17 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
       return (ScreenState)SCREEN_CLEAN_ACTION;
     }
     Serial.println(">>> Touch on INFO screen - returning to main");
+    return SCREEN_MAIN;
+  }
+
+  // Special handling for HISTORY screen - toggle zone at top right
+  if (currentState == SCREEN_HISTORY) {
+    // Toggle button zone: top right (X 800-960, Y 200-350)
+    if (touchX >= 800 && touchX <= 960 && touchY >= 200 && touchY <= 350) {
+      Serial.println(">>> History toggle button touched");
+      return (ScreenState)SCREEN_HISTORY_TOGGLE;
+    }
+    Serial.println(">>> Touch on HISTORY screen - returning to main");
     return SCREEN_MAIN;
   }
 
