@@ -15,7 +15,8 @@ enum ScreenState {
   SCREEN_CURRENT_DETAIL,
   SCREEN_FORECAST,
   SCREEN_GRAPHS,
-  SCREEN_INFO
+  SCREEN_INFO,
+  SCREEN_HISTORY
 };
 
 // Touch zone structure
@@ -33,18 +34,24 @@ bool navigationModeActive = false;
 const unsigned long SCREEN_TIMEOUT_MS = 30000;      // 30 seconds
 const unsigned long MAX_NAVIGATION_TIME_MS = 300000; // 5 minutes max
 
-// Main screen touch zones - adjusted for actual touch Y range
-// Touch Y values appear compressed, adjusted boundaries accordingly
+// Main screen touch zones
+// Touch X and Y are both inverted: X=0 is physical right, Y=540 is physical top
 const TouchZone mainScreenZones[] = {
-  // Moon icon area - System info (X 0-150, Y 180-300)
-  {0, 180, 150, 300, SCREEN_INFO},
-  // Physical top 40% - current conditions (Y 180-540, excluding moon area)
-  {150, 180, 960, 540, SCREEN_CURRENT_DETAIL},
-  {0, 300, 150, 540, SCREEN_CURRENT_DETAIL},
+  // Battery/WiFi area top-right - System info (inverted: X 0-360, Y 480-540)
+  {0, 480, 360, 540, SCREEN_INFO},
+  // Moon icon area - System info (X 810-960, Y 180-300)
+  {810, 180, 960, 300, SCREEN_INFO},
+  // Physical top 40% - current conditions (excluding battery area)
+  {360, 180, 960, 540, SCREEN_CURRENT_DETAIL},
+  {0, 180, 360, 480, SCREEN_CURRENT_DETAIL},
+  {810, 300, 960, 540, SCREEN_CURRENT_DETAIL},
   // Physical middle 30% - 5-day forecast (Y 90-180)
   {0, 90, 960, 180, SCREEN_FORECAST},
-  // Physical bottom 30% - 5-day graphs (Y 0-90)
-  {0, 0, 960, 90, SCREEN_GRAPHS}
+  // Physical bottom 30% - graphs area split in two:
+  // Right half (physical) = X 0-480 (inverted) -> Forecast graphs
+  {0, 0, 480, 90, SCREEN_GRAPHS},
+  // Left half (physical) = X 480-960 (inverted) -> Real history
+  {480, 0, 960, 90, SCREEN_HISTORY}
 };
 const int NUM_MAIN_ZONES = sizeof(mainScreenZones) / sizeof(mainScreenZones[0]);
 
@@ -211,11 +218,25 @@ bool readTouchPoint(TouchPoint &point) {
   return false;
 }
 
+// Special return value for deep clean action
+#define SCREEN_CLEAN_ACTION 99
+
 // Check which zone was touched
 ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
   Serial.printf("Checking zones for touch at (%d, %d), current screen: %d\n", touchX, touchY, currentState);
 
-  // Any touch on secondary screens returns to main
+  // Special handling for INFO screen - check clean button zone (bottom area)
+  if (currentState == SCREEN_INFO) {
+    // Clean button zone: bottom center (inverted coords: X 300-660, Y 0-100)
+    if (touchX >= 300 && touchX <= 660 && touchY >= 0 && touchY <= 100) {
+      Serial.println(">>> Clean button touched on INFO screen");
+      return (ScreenState)SCREEN_CLEAN_ACTION;
+    }
+    Serial.println(">>> Touch on INFO screen - returning to main");
+    return SCREEN_MAIN;
+  }
+
+  // Any touch on other secondary screens returns to main
   if (currentState != SCREEN_MAIN) {
     Serial.println(">>> Touch on secondary screen - returning to main");
     return SCREEN_MAIN;

@@ -163,7 +163,7 @@ void updateMonthPointer() {
 const char* TXT_BACK_ARR[] = { "Regresar", "Back", "Retour" };
 const char* TXT_CURRENT_CONDITIONS_ARR[] = { "Condiciones Actuales", "Current Conditions", "Conditions Actuelles" };
 const char* TXT_5DAY_FORECAST_ARR[] = { "Pronostico", "Forecast", "Previsions" };
-const char* TXT_WEATHER_TRENDS_ARR[] = { "Historial del Clima", "Weather History", "Historique Meteo" };
+const char* TXT_WEATHER_TRENDS_ARR[] = { "Pronostico del Clima", "Weather Forecast", "Previsions Meteo" };
 const char* TXT_NEXT_24H_ARR[] = { "Proximas 24 Horas", "Next 24 Hours", "Prochaines 24 Heures" };
 const char* TXT_5DAY_OUTLOOK_ARR[] = { "Proximos 5 Dias", "Next 5 Days", "Prochains 5 Jours" };
 const char* TXT_SYSTEM_INFO_ARR[] = { "Informacion del Sistema", "System Information", "Informations Systeme" };

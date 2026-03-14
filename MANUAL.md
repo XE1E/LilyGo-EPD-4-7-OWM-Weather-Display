@@ -488,10 +488,13 @@ La pagina web esta organizada en 4 pestanas:
 
 ### 7.1 Sistema de Navegacion Tactil
 
-El dispositivo tiene 4 pantallas navegables tocando diferentes zonas:
+El dispositivo tiene 5 pantallas navegables tocando diferentes zonas:
 
 ```
 Pantalla Principal (SCREEN_MAIN)
++--------------------------------+
+| [Ciudad]        [Bat%][WiFi]  |  <-- Zona Bateria/WiFi (esquina sup-der)
+|                                |      -> Pantalla 4: Informacion Sistema
 +--------------------------------+
 |                                |  <-- Zona superior (40%)
 |    Toca aqui para             |      -> Pantalla 1: Detalles
@@ -582,13 +585,13 @@ Pantalla Principal (SCREEN_MAIN)
 +-----------------------------------------------+
 ```
 
-### 7.5 Pantalla 3: Graficas de Historial
+### 7.5 Pantalla 3: Graficas de Pronostico
 
 ```
 +-----------------------------------------------+
 |  [Fecha]  @ [Hora]                            |
 +-----------------------------------------------+
-|           HISTORIAL DEL CLIMA                 |
+|           PRONOSTICO DEL CLIMA                |
 +-----------------------------------------------+
 |                                               |
 |  [Grafica Temperatura]   [Grafica Presion]    |
@@ -606,7 +609,38 @@ Pantalla Principal (SCREEN_MAIN)
 +-----------------------------------------------+
 ```
 
-### 7.6 Timeout y Sleep
+### 7.6 Pantalla 4: Informacion del Sistema
+
+**Acceso**: Tocar la esquina superior derecha donde se muestra la bateria y senal WiFi.
+
+```
++-----------------------------------------------+
+|  [Fecha]  @ [Hora]                            |
++-----------------------------------------------+
+|           INFORMACION DEL SISTEMA             |
++-----------------------------------------------+
+|                                               |
+|   Firmware:        v2.0                       |
+|   Compilado:       Mar 13 2026                |
+|                                               |
+|   WiFi SSID:       MiRedWiFi                  |
+|   WiFi IP:         192.168.1.100              |
+|   Senal:           -65 dBm                    |
+|                                               |
+|   Bateria:         85% (4.1v)                 |
+|                                               |
+|   Ubicacion:       Ciudad, Pais               |
+|   Coordenadas:     19.4326, -99.1332          |
+|   Zona horaria:    UTC-6                      |
+|                                               |
+|   Proxima actualizacion: 30 min               |
+|                                               |
++-----------------------------------------------+
+```
+
+Esta pantalla muestra informacion tecnica del dispositivo util para diagnostico y verificacion de configuracion.
+
+### 7.7 Timeout y Sleep
 
 - **30 segundos** sin tocar -> Regresa a pantalla principal y entra en deep sleep
 - **5 minutos** maximo de navegacion continua como proteccion
@@ -830,7 +864,7 @@ El sistema soporta 3 idiomas configurables:
 |-------|---------|---------|----------|
 | Condiciones | Condiciones Actuales | Current Conditions | Conditions Actuelles |
 | Pronostico | Pronostico | Forecast | Previsions |
-| Historial | Historial del Clima | Weather History | Historique Meteo |
+| Graficas | Pronostico del Clima | Weather Forecast | Previsions Meteo |
 | Amanecer | Amanecer | Sunrise | Lever |
 | Anochecer | Anochecer | Sunset | Coucher |
 | Humedad | Humedad | Humidity | Humidite |

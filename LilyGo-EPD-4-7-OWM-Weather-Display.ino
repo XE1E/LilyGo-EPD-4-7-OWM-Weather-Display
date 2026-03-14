@@ -41,10 +41,12 @@
 #include <WiFi.h>               // In-built
 #include <SPI.h>                // In-built
 #include <time.h>               // In-built
+#include <SPIFFS.h>             // In-built - for weather history storage
 
 #include "owm_credentials.h"
 #include "wifi_manager.h"       // AP mode and captive portal
 #include "forecast_record.h"
+#include "weather_history.h"    // SPIFFS weather history storage
 #include "lang.h"
 #include "sunset.h"
 #include "sunrise.h"
@@ -121,8 +123,10 @@ void DisplayCurrentDetailScreen();
 void DisplayForecastScreen();
 void DisplayGraphsScreen();
 void DisplayInfoScreen();
+void DisplayHistoryScreen();
 void DisplayWeather();
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize);
+void deepCleanDisplay();
 String WindDegToOrdinalDirection(float winddirection);
 String TitleCase(String text);
 String ConvertUnixTime(int unix_time);
@@ -154,6 +158,11 @@ void BeginSleep() {
   // Stop web server and WiFi before sleep
   stopWebServer();
   StopWiFi();
+
+  // Save current screen to NVS (RTC_DATA_ATTR doesn't work reliably on ESP32-S3)
+  preferences.begin("weather", false);
+  preferences.putInt("lastscreen", (int)currentScreen);
+  preferences.end();
 
   displayPowerOff();
   UpdateLocalTime();
@@ -248,7 +257,7 @@ uint8_t StartWiFi() {
     if (WiFi.waitForConnectResult() != WL_CONNECTED) {
       Serial.printf("STA: Failed!\n");
       WiFi.disconnect(false);
-      delay(500);
+      delay(200);  // Reduced from 500ms
       WiFi.begin(selectedSSID, selectedPass);
       WiFi.waitForConnectResult();
     }
@@ -286,7 +295,7 @@ void StopWiFi() {
 void InitialiseSystem() {
   StartTime = millis();
   Serial.begin(115200);
-  delay(1000); // TODO
+  delay(200); // Reduced from 1000ms - enough for serial init
   pinMode(21, INPUT);  // SENSOP_VN
   Serial.println(String(__FILE__) + "\nStarting...");
   epd_init();
@@ -324,6 +333,9 @@ void refreshScreenFast() {
     case SCREEN_INFO:
       DisplayInfoScreen();
       break;
+    case SCREEN_HISTORY:
+      DisplayHistoryScreen();
+      break;
   }
 
   edp_update();
@@ -352,6 +364,9 @@ void refreshScreen() {
     case SCREEN_INFO:
       DisplayInfoScreen();
       break;
+    case SCREEN_HISTORY:
+      DisplayHistoryScreen();
+      break;
   }
 
   edp_update();
@@ -365,6 +380,30 @@ void displayPowerOff() {
   }
 }
 
+// Deep clean display - multiple refresh cycles to remove ghosting
+void deepCleanDisplay() {
+  Serial.println("Starting deep clean...");
+  epd_poweron();
+  displayPoweredOn = true;
+
+  // Do 3 cycles of black-white to clean ghosting
+  for (int i = 0; i < 3; i++) {
+    Serial.printf("Clean cycle %d/3\n", i + 1);
+    memset(framebuffer, 0x00, EPD_WIDTH * EPD_HEIGHT / 2);  // All black
+    epd_draw_grayscale_image(epd_full_screen(), framebuffer);
+    delay(300);
+    memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);  // All white
+    epd_draw_grayscale_image(epd_full_screen(), framebuffer);
+    delay(300);
+  }
+
+  epd_clear();  // Final clear
+  Serial.println("Deep clean complete");
+
+  // Redraw current screen
+  refreshScreenFast();
+}
+
 // Handle touch input and screen navigation
 void handleTouchNavigation() {
   if (pollTouch()) {
@@ -372,6 +411,12 @@ void handleTouchNavigation() {
     ScreenState newScreen = checkTouchZone(lastTouch.x, lastTouch.y, currentScreen);
 
     Serial.printf("Current screen: %d, New screen: %d\n", currentScreen, newScreen);
+
+    // Check for special deep clean action
+    if (newScreen == SCREEN_CLEAN_ACTION) {
+      deepCleanDisplay();
+      return;
+    }
 
     if (newScreen != currentScreen) {
       Serial.println("Changing screen...");
@@ -404,7 +449,7 @@ void handleTouchNavigation() {
     navigationModeActive = false;
     refreshScreen();  // Full refresh before sleep
     displayPowerOff();
-    delay(500);
+    delay(100);  // Reduced from 500ms - just enough for display to stabilize
     BeginSleep();
   }
 }
@@ -539,9 +584,24 @@ void setup() {
     Serial.println("Warning: Touch controller not available");
   }
 
+  // Initialize weather history (SPIFFS)
+  if (initWeatherHistory()) {
+    Serial.printf("Weather history: %d readings (%.1f days)\n", historyCount, getHistoryDays());
+  }
+
   // Load stored configuration
   loadConfig();
   applyStoredConfig();
+
+  // Load last screen from NVS (if configured to keep screen)
+  if (config.keep_screen_on_sleep) {
+    preferences.begin("weather", true);
+    currentScreen = (ScreenState)preferences.getInt("lastscreen", SCREEN_MAIN);
+    preferences.end();
+  }
+
+  // Sync sleep duration with config
+  SleepDuration = config.update_interval;
 
   // Initialize language based on config
   initLanguage(config.language);
@@ -575,15 +635,23 @@ void setup() {
       }
       Serial.println("Received all weather data...");
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
+        // Save current weather to history
+        addWeatherReading(
+          WxConditions[0].Temperature,
+          WxConditions[0].Humidity,
+          WxConditions[0].Pressure,
+          WxConditions[0].Rainfall,
+          WxConditions[0].Feelslike
+        );
+
         // Start web server for configuration (WiFi stays on)
         startWebServer();
 
-        currentScreen = SCREEN_MAIN;
-        epd_poweron();      // Switch on EPD display
-        displayPoweredOn = true;
-        epd_clear();        // Clear the screen
-        DisplayWeather();   // Display the weather data
-        edp_update();       // Update the display to show the information
+        // Only reset to main screen if not configured to keep current screen
+        if (!config.keep_screen_on_sleep) {
+          currentScreen = SCREEN_MAIN;
+        }
+        refreshScreen();    // Display the appropriate screen based on currentScreen
         // Keep display on for touch navigation
 
         // Initialize touch time and let loop() handle navigation
@@ -1190,7 +1258,7 @@ void DrawBattery(int x, int y) {
     int pct = (voltage - 3.2) * 100;  // 3.2V=0%, 4.2V=100%
     if (pct > 100) pct = 100;
     if (pct < 0) pct = 0;
-    percentage = pct;  
+    percentage = pct;
     drawRect(x + 25, y - 14, 40, 15, Black);
     fillRect(x + 65, y - 10, 4, 7, Black);
     fillRect(x + 27, y - 12, 36 * percentage / 100.0, 11, Black);
@@ -1545,7 +1613,8 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
     x2 = x_pos + gx * gwidth / (readings - 1) - 1 ; // max_readings is the global variable that sets the maximum data that can be plotted
     y2 = y_pos + (Y1Max - constrain(DataArray[gx], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight + 1;
     if (barchart_mode) {
-      fillRect(last_x + 2, y2, (gwidth / readings) - 1, y_pos + gheight - y2 + 2, LightGrey);
+      // Thin bars (2px wide) like line thickness
+      fillRect(x2, y2, 2, y_pos + gheight - y2 + 2, Black);
     } else {
       drawLine(last_x, last_y - 1, x2, y2 - 1, Black); // Two lines for hi-res display
       drawLine(last_x, last_y, x2, y2, Black);
@@ -1657,7 +1726,7 @@ void DisplayCurrentDetailScreen() {
   drawString(SCREEN_WIDTH / 2, 50, TXT_CURRENT_CONDITIONS, CENTER);
   drawFastHLine(150, 85, SCREEN_WIDTH - 300, Grey);
 
-  String tempUnit = (Units == "M") ? "C" : "F";
+  String tempUnit = (Units == "M") ? "\xB0C" : "\xB0F";  // ° symbol
 
   // === TOP SECTION: Temperature, Pressure, Humidity ===
   int col1X = 160, col2X = 480, col3X = 800;
@@ -1685,45 +1754,10 @@ void DisplayCurrentDetailScreen() {
   // === MIDDLE SECTION: Weather Icon + Details ===
   drawFastHLine(50, 190, SCREEN_WIDTH - 100, Grey);
 
-  // Left: Weather icon (extra large)
+  // Left: Weather icon (extra large) - moved 40px right
   iconScaleOverride = XLarge;
-  DisplayConditionsSection(180, 300, WxConditions[0].Icon, LargeIcon);
+  DisplayConditionsSection(220, 300, WxConditions[0].Icon, LargeIcon);
   iconScaleOverride = 0;
-  setFont(OpenSans12B);
-  String wxDesc = WxConditions[0].Forecast0;
-
-  // Word wrap with 20 char limit per line, max 3 lines
-  int lineWidth = 20;
-  String lines[3] = {"", "", ""};
-  int lineNum = 0;
-  int charCount = 0;
-  String word = "";
-
-  for (int i = 0; i <= wxDesc.length(); i++) {
-    char c = (i < wxDesc.length()) ? wxDesc.charAt(i) : ' ';
-    if (c == ' ') {
-      if (charCount + word.length() > lineWidth && charCount > 0) {
-        lineNum++;
-        if (lineNum >= 3) break;
-        charCount = 0;
-      }
-      if (charCount > 0) {
-        lines[lineNum] += " ";
-        charCount++;
-      }
-      lines[lineNum] += word;
-      charCount += word.length();
-      word = "";
-    } else {
-      word += c;
-    }
-  }
-
-  int descX = 35;
-  int descY = 350;
-  drawString(descX, descY, TitleCase(lines[0]), LEFT);
-  if (lines[1].length() > 0) drawString(descX, descY + 25, TitleCase(lines[1]), LEFT);
-  if (lines[2].length() > 0) drawString(descX, descY + 50, TitleCase(lines[2]), LEFT);
 
   // Right: Visibility, Wind, Clouds, Feels Like
   int rightColLabel = 675, rightColValue = 805;
@@ -1745,7 +1779,7 @@ void DisplayCurrentDetailScreen() {
   // === BOTTOM SECTION: Sunrise, Sunset, Rain Probability ===
   drawFastHLine(50, 420, SCREEN_WIDTH - 100, Grey);
 
-  int bottomY = 470;
+  int bottomY = 445;  // Moved up 25px
   int bot1X = 160, bot2X = 480, bot3X = 800;
 
   setFont(OpenSans18B);
@@ -1891,7 +1925,7 @@ void DisplayGraphsScreen() {
   // Humidity - bottom left
   DrawGraph(gx1, gy2, gwidth, gheight, 0, 100, TXT_HUMIDITY_PERCENT, humidity_readings, max_readings, autoscale_off, barchart_off);
 
-  // Rain/Snow - bottom right
+  // Rain/Snow - bottom right (thin bars)
   if (SumOfPrecip(rain_readings, max_readings) >= SumOfPrecip(snow_readings, max_readings)) {
     if (Units == "M")
       DrawGraph(gx2, gy2, gwidth, gheight, 0, 30, TXT_RAINFALL_MM, rain_readings, max_readings, autoscale_on, barchart_on);
@@ -1917,130 +1951,165 @@ void DisplayInfoScreen() {
   drawString(SCREEN_WIDTH / 2, 50, TXT_SYSTEM_INFO, CENTER);
   drawFastHLine(150, 85, SCREEN_WIDTH - 300, Grey);
 
-  int col1X = 50;    // Labels
-  int col2X = 250;   // Values column 1
-  int col3X = 500;   // Labels column 2
-  int col4X = 700;   // Values column 2
-  int rowH = 28;     // Row height
-  int startY = 110;
+  int col1X = 50;    // Labels left
+  int col2X = 230;   // Values left
+  int col3X = 500;   // Labels right
+  int col4X = 680;   // Values right
 
   setFont(OpenSans10B);
 
-  // === LEFT COLUMN ===
-  int row = 0;
+  // === LEFT COLUMN - Explicit Y coordinates ===
 
-  // Software Version
-  drawString(col1X, startY + row * rowH, "Version:", LEFT);
-  drawString(col2X, startY + row * rowH, version, LEFT);
-  row++;
+  // Section 1: System Info
+  drawString(col1X, 110, "Version:", LEFT);
+  drawString(col2X, 110, version, LEFT);
 
-  // Build Date
-  drawString(col1X, startY + row * rowH, "Compilado:", LEFT);
-  drawString(col2X, startY + row * rowH, String(__DATE__) + " " + String(__TIME__), LEFT);
-  row++;
+  drawString(col1X, 138, "Compilado:", LEFT);
+  drawString(col2X, 138, String(__DATE__) + " " + String(__TIME__), LEFT);
 
-  // Memory Info
-  drawString(col1X, startY + row * rowH, "Heap Libre:", LEFT);
-  drawString(col2X, startY + row * rowH, String(ESP.getFreeHeap() / 1024) + " KB", LEFT);
-  row++;
+  drawString(col1X, 166, "Heap Libre:", LEFT);
+  drawString(col2X, 166, String(ESP.getFreeHeap() / 1024) + " KB", LEFT);
 
-  drawString(col1X, startY + row * rowH, "Heap Total:", LEFT);
-  drawString(col2X, startY + row * rowH, String(ESP.getHeapSize() / 1024) + " KB", LEFT);
-  row++;
+  drawString(col1X, 194, "Heap Total:", LEFT);
+  drawString(col2X, 194, String(ESP.getHeapSize() / 1024) + " KB", LEFT);
 
-  drawString(col1X, startY + row * rowH, "PSRAM Libre:", LEFT);
-  drawString(col2X, startY + row * rowH, String(ESP.getFreePsram() / 1024) + " KB", LEFT);
-  row++;
+  drawString(col1X, 222, "PSRAM Libre:", LEFT);
+  drawString(col2X, 222, String(ESP.getFreePsram() / 1024) + " KB", LEFT);
 
-  // WiFi Info
-  row++;  // Blank row
-  drawString(col1X, startY + row * rowH, "WiFi SSID:", LEFT);
-  drawString(col2X, startY + row * rowH, WiFi.isConnected() ? WiFi.SSID() : "Desconectado", LEFT);
-  row++;
+  // Section 2: WiFi Info (with gap)
+  drawString(col1X, 265, "WiFi SSID:", LEFT);
+  drawString(col2X, 265, WiFi.isConnected() ? WiFi.SSID() : "Desconectado", LEFT);
 
-  drawString(col1X, startY + row * rowH, "IP Local:", LEFT);
-  drawString(col2X, startY + row * rowH, WiFi.isConnected() ? WiFi.localIP().toString() : "--", LEFT);
-  row++;
+  drawString(col1X, 293, "IP Local:", LEFT);
+  drawString(col2X, 293, WiFi.isConnected() ? WiFi.localIP().toString() : "--", LEFT);
 
-  drawString(col1X, startY + row * rowH, "Senal WiFi:", LEFT);
-  drawString(col2X, startY + row * rowH, WiFi.isConnected() ? String(WiFi.RSSI()) + " dBm" : "--", LEFT);
-  row++;
+  drawString(col1X, 321, "Senal WiFi:", LEFT);
+  drawString(col2X, 321, WiFi.isConnected() ? String(WiFi.RSSI()) + " dBm" : "--", LEFT);
 
-  // Location
-  row++;  // Blank row
-  drawString(col1X, startY + row * rowH, "Ciudad:", LEFT);
-  drawString(col2X, startY + row * rowH, String(config.city), LEFT);
-  row++;
+  // Section 3: Location (with gap)
+  drawString(col1X, 364, "Ciudad:", LEFT);
+  drawString(col2X, 364, String(config.city), LEFT);
 
-  drawString(col1X, startY + row * rowH, "Coordenadas:", LEFT);
-  drawString(col2X, startY + row * rowH, String(config.latitude) + ", " + String(config.longitude), LEFT);
-  row++;
+  drawString(col1X, 392, "Coordenadas:", LEFT);
+  drawString(col2X, 392, String(config.latitude) + ", " + String(config.longitude), LEFT);
 
-  drawString(col1X, startY + row * rowH, "Zona Horaria:", LEFT);
-  drawString(col2X, startY + row * rowH, String(config.timezone), LEFT);
-  row++;
+  drawString(col1X, 420, "Zona Horaria:", LEFT);
+  drawString(col2X, 420, String(config.timezone), LEFT);
 
-  // === RIGHT COLUMN ===
-  row = 0;
+  // === RIGHT COLUMN - Explicit Y coordinates ===
 
-  // Config
-  drawString(col3X, startY + row * rowH, "Idioma:", LEFT);
+  // Section 1: Config
+  drawString(col3X, 110, "Idioma:", LEFT);
   String langStr = strcmp(config.language, "ES") == 0 ? "Espanol" :
                    strcmp(config.language, "EN") == 0 ? "English" : "Francais";
-  drawString(col4X, startY + row * rowH, langStr, LEFT);
-  row++;
+  drawString(col4X, 110, langStr, LEFT);
 
-  drawString(col3X, startY + row * rowH, "Unidades:", LEFT);
-  drawString(col4X, startY + row * rowH, strcmp(config.units, "M") == 0 ? "Metrico" : "Imperial", LEFT);
-  row++;
+  drawString(col3X, 138, "Unidades:", LEFT);
+  drawString(col4X, 138, strcmp(config.units, "M") == 0 ? "Metrico" : "Imperial", LEFT);
 
-  drawString(col3X, startY + row * rowH, "Hemisferio:", LEFT);
-  drawString(col4X, startY + row * rowH, strcmp(config.hemisphere, "north") == 0 ? "Norte" : "Sur", LEFT);
-  row++;
+  drawString(col3X, 166, "Hemisferio:", LEFT);
+  drawString(col4X, 166, strcmp(config.hemisphere, "north") == 0 ? "Norte" : "Sur", LEFT);
 
-  drawString(col3X, startY + row * rowH, "Pronostico:", LEFT);
-  drawString(col4X, startY + row * rowH, String(config.forecast_days) + " dias", LEFT);
-  row++;
+  drawString(col3X, 194, "Pronostico:", LEFT);
+  drawString(col4X, 194, String(config.forecast_days) + " dias", LEFT);
 
-  row++;  // Blank row
+  // Section 2: System Config (with gap)
+  drawString(col3X, 237, "Actualizacion:", LEFT);
+  drawString(col4X, 237, String(config.update_interval) + " min", LEFT);
 
-  // System Config
-  drawString(col3X, startY + row * rowH, "Intervalo Actualiz:", LEFT);
-  drawString(col4X, startY + row * rowH, String(config.update_interval) + " min", LEFT);
-  row++;
+  drawString(col3X, 265, "Timeout Sleep:", LEFT);
+  drawString(col4X, 265, String(config.sleep_timeout) + " seg", LEFT);
 
-  drawString(col3X, startY + row * rowH, "Timeout Sleep:", LEFT);
-  drawString(col4X, startY + row * rowH, String(config.sleep_timeout) + " seg", LEFT);
-  row++;
+  drawString(col3X, 293, "Al Dormir:", LEFT);
+  drawString(col4X, 293, config.keep_screen_on_sleep ? "Mantener pantalla" : "Ir a principal", LEFT);
 
-  drawString(col3X, startY + row * rowH, "Al Dormir:", LEFT);
-  drawString(col4X, startY + row * rowH, config.keep_screen_on_sleep ? "Mantener pantalla" : "Ir a principal", LEFT);
-  row++;
-
-  row++;  // Blank row
-
-  // API Info
-  drawString(col3X, startY + row * rowH, "API Key:", LEFT);
+  // Section 3: API Info (with gap)
+  drawString(col3X, 336, "API Key:", LEFT);
   String apiKeyMasked = String(config.api_key).substring(0, 8) + "...";
-  drawString(col4X, startY + row * rowH, apiKeyMasked, LEFT);
-  row++;
-
-  row++;  // Blank row
+  drawString(col4X, 336, apiKeyMasked, LEFT);
 
   // Web Config URL
-  drawString(col3X, startY + row * rowH, "Config Web:", LEFT);
+  drawString(col3X, 379, "Config Web:", LEFT);
   if (WiFi.isConnected()) {
-    drawString(col4X, startY + row * rowH, "http://" + WiFi.localIP().toString(), LEFT);
+    drawString(col4X, 379, "http://" + WiFi.localIP().toString(), LEFT);
   } else {
-    drawString(col4X, startY + row * rowH, "WiFi desconectado", LEFT);
+    drawString(col4X, 379, "WiFi desconectado", LEFT);
   }
-  row++;
+
+  // Clean display button at bottom center
+  setFont(OpenSans12B);
+  // Thicker border (3 rectangles)
+  drawRect(SCREEN_WIDTH/2 - 120, 455, 240, 45, Black);
+  drawRect(SCREEN_WIDTH/2 - 119, 456, 238, 43, Black);
+  drawRect(SCREEN_WIDTH/2 - 118, 457, 236, 41, Black);
+  drawString(SCREEN_WIDTH/2, 467, "Limpiar Pantalla", CENTER);
 
   // Footer - Uptime
   setFont(OpenSans8B);
   unsigned long uptime = millis() / 1000;
   int uptimeMin = (uptime / 60) % 60;
   int uptimeSec = uptime % 60;
-  drawString(SCREEN_WIDTH / 2, 510, "Tiempo activo: " + String(uptimeMin) + "m " + String(uptimeSec) + "s", CENTER);
+  drawString(SCREEN_WIDTH / 2, 515, "Tiempo activo: " + String(uptimeMin) + "m " + String(uptimeSec) + "s", CENTER);
+}
+
+// Screen 6: Weather History (real recorded data)
+void DisplayHistoryScreen() {
+  // Date/Time same format and position as main screen
+  setFont(OpenSans10B);
+  drawString(300, 15, Date_str + "  @ " + Time_str, LEFT);
+
+  // Title
+  setFont(OpenSans18B);
+  drawString(SCREEN_WIDTH / 2, 50, "Historial Real", CENTER);
+  drawFastHLine(150, 85, SCREEN_WIDTH - 300, Grey);
+
+  // Info about history
+  setFont(OpenSans10B);
+  String histInfo = String(historyCount) + " lecturas / " + String(getHistoryDays(), 1) + " dias";
+  drawString(SCREEN_WIDTH / 2, 100, histInfo, CENTER);
+
+  if (historyCount < 2) {
+    setFont(OpenSans12B);
+    drawString(SCREEN_WIDTH / 2, 300, "Aun no hay suficientes datos", CENTER);
+    drawString(SCREEN_WIDTH / 2, 340, "El historial se llena con cada actualizacion", CENTER);
+    return;
+  }
+
+  // Prepare data arrays for last 48 hours (or all available)
+  #define HISTORY_GRAPH_READINGS 100
+  float hist_temp[HISTORY_GRAPH_READINGS];
+  float hist_hum[HISTORY_GRAPH_READINGS];
+  float hist_press[HISTORY_GRAPH_READINGS];
+  float hist_rain[HISTORY_GRAPH_READINGS];
+
+  int readings = getReadingsForHours(48, hist_temp, hist_hum, hist_press, hist_rain, HISTORY_GRAPH_READINGS);
+
+  if (readings < 2) {
+    setFont(OpenSans12B);
+    drawString(SCREEN_WIDTH / 2, 300, "Datos insuficientes para graficar", CENTER);
+    return;
+  }
+
+  // Draw 4 graphs (2x2 layout)
+  int gwidth = 380;
+  int gheight = 140;
+  int gx1 = 110, gx2 = 550;
+  int gy1 = 130, gy2 = 330;
+
+  // Temperature - top left
+  DrawGraph(gx1, gy1, gwidth, gheight, 0, 40, "Temperatura " + String("\xB0") + "C", hist_temp, readings, autoscale_on, barchart_off);
+
+  // Humidity - top right
+  DrawGraph(gx2, gy1, gwidth, gheight, 0, 100, "Humedad %", hist_hum, readings, autoscale_off, barchart_off);
+
+  // Pressure - bottom left
+  DrawGraph(gx1, gy2, gwidth, gheight, 900, 1050, "Presion hPa", hist_press, readings, autoscale_on, barchart_off);
+
+  // Rainfall - bottom right
+  DrawGraph(gx2, gy2, gwidth, gheight, 0, 10, "Lluvia mm", hist_rain, readings, autoscale_on, barchart_on);
+
+  // Footer
+  setFont(OpenSans8B);
+  drawString(SCREEN_WIDTH / 2, 510, "Ultimas 48 horas de datos reales", CENTER);
 }
 
