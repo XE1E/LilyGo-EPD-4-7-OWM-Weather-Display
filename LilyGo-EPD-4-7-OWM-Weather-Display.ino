@@ -1984,7 +1984,7 @@ void DisplayCurrentDetailScreen() {
   setFont(OpenSans14B);
   drawString(col1X, topY + 10, tempUnit, LEFT);
   setFont(OpenSans10B);
-  drawString(col1X - 10, topY + 45, TXT_MAX + " " + String(WxConditions[0].High, 0) + " / " + TXT_MIN + " " + String(WxConditions[0].Low, 0), CENTER);
+  drawString(col1X - 25, topY + 45, TXT_MAX + " " + String(WxConditions[0].High, 0) + " / " + TXT_MIN + " " + String(WxConditions[0].Low, 0), CENTER);
 
   // Pressure - value large, unit small aligned at bottom
   setFont(OpenSans24B);
@@ -1994,7 +1994,7 @@ void DisplayCurrentDetailScreen() {
   setFont(OpenSans14B);
   drawString(col2X, topY + 10, pressUnit, LEFT);
   setFont(OpenSans10B);
-  drawString(col2X, topY + 45, TXT_PRESSURE, CENTER);
+  drawString(col2X - 20, topY + 45, TXT_PRESSURE, CENTER);
 
   // Humidity - value large, unit small aligned at bottom
   setFont(OpenSans24B);
@@ -2002,7 +2002,7 @@ void DisplayCurrentDetailScreen() {
   setFont(OpenSans14B);
   drawString(col3X, topY + 10, "%", LEFT);
   setFont(OpenSans10B);
-  drawString(col3X, topY + 45, TXT_HUMIDITY, CENTER);
+  drawString(col3X - 15, topY + 45, TXT_HUMIDITY, CENTER);
 
   // === MIDDLE SECTION: Weather Icon + Details ===
   drawFastHLine(50, 190, SCREEN_WIDTH - 100, Grey);
