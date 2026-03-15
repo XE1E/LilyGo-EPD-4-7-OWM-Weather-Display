@@ -669,9 +669,9 @@ void setup() {
   if (StartWiFi() == WL_CONNECTED && SetupTime() == true) {
     bool WakeUp = false;
     if (WakeupHour > SleepHour)
-      WakeUp = (CurrentHour >= WakeupHour || CurrentHour <= SleepHour);
+      WakeUp = (CurrentHour >= WakeupHour || CurrentHour < SleepHour);
     else
-      WakeUp = (CurrentHour >= WakeupHour && CurrentHour <= SleepHour);
+      WakeUp = (CurrentHour >= WakeupHour && CurrentHour < SleepHour);
     if (WakeUp) {
       byte Attempts = 1;
       bool RxWeather  = false;
