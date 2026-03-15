@@ -169,6 +169,51 @@ float getHistoryDays() {
   return (newest.timestamp - oldest.timestamp) / 86400.0;
 }
 
+// Get actual hours span from oldest to newest reading in the requested range
+float getHistoryHoursSpan(int requestedHours) {
+  if (!historyInitialized || historyCount < 2) return 0;
+
+  uint32_t now = time(nullptr);
+  uint32_t cutoff = now - (requestedHours * 3600);
+
+  uint32_t oldestTimestamp = 0;
+  uint32_t newestTimestamp = 0;
+
+  // Find oldest and newest readings within range
+  for (int i = 0; i < historyCount; i++) {
+    WeatherReading reading;
+    if (getWeatherReading(i, reading)) {
+      if (reading.timestamp >= cutoff) {
+        if (oldestTimestamp == 0) oldestTimestamp = reading.timestamp;
+        newestTimestamp = reading.timestamp;
+      }
+    }
+  }
+
+  if (oldestTimestamp == 0 || newestTimestamp == 0) return 0;
+  return (newestTimestamp - oldestTimestamp) / 3600.0;
+}
+
+// Get start hour of oldest data point in range (returns hour 0-23)
+int getHistoryStartHour(int requestedHours) {
+  if (!historyInitialized || historyCount == 0) return 0;
+
+  uint32_t now = time(nullptr);
+  uint32_t cutoff = now - (requestedHours * 3600);
+
+  // Find oldest reading within the requested range
+  for (int i = 0; i < historyCount; i++) {
+    WeatherReading reading;
+    if (getWeatherReading(i, reading)) {
+      if (reading.timestamp >= cutoff) {
+        struct tm* tm_info = localtime((time_t*)&reading.timestamp);
+        return tm_info->tm_hour;
+      }
+    }
+  }
+  return 0;
+}
+
 // Clear all history
 void clearWeatherHistory() {
   historyCount = 0;

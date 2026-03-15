@@ -131,6 +131,7 @@ String WindDegToOrdinalDirection(float winddirection);
 String TitleCase(String text);
 String ConvertUnixTime(int unix_time);
 void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode, int title_x_offset = 0, int hours_span = 0);
+void DrawHistoryGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, String unit, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode, int hours_span, boolean weekly_view, int start_hour);
 float SumOfPrecip(float DataArray[], int readings);
 void drawString(int x, int y, String text, alignment align);
 void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
@@ -1672,6 +1673,170 @@ void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float
   }
 }
 
+// History graph - 48H shows full details, weekly shows only midnight lines
+void DrawHistoryGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, String unit, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode, int hours_span, boolean weekly_view, int start_hour) {
+#define y_minor_axis_hist 5
+  setFont(OpenSans9B);
+  float maxYscale = -10000;
+  float minYscale =  10000;
+  int last_x, last_y;
+  float x2, y2;
+  bool isWeeklyView = weekly_view;
+
+  // Calculate min/max from data
+  for (int i = 0; i < readings; i++) {
+    if (DataArray[i] > maxYscale) maxYscale = DataArray[i];
+    if (DataArray[i] < minYscale) minYscale = DataArray[i];
+  }
+  float dataMin = minYscale;
+  float dataMax = maxYscale;
+
+  if (auto_scale == true) {
+    Y1Max = round(maxYscale + 0.5);
+    if (minYscale != 0) Y1Min = round(minYscale - 0.5);
+    else Y1Min = 0;
+  }
+  if (Y1Max <= Y1Min) {
+    Y1Max = Y1Min + 10;
+  }
+
+  // Current value and trend (only for 48H view)
+  float currentValue = DataArray[readings - 1];
+  float trendValue = 0;
+  if (readings > 6) {
+    trendValue = currentValue - DataArray[readings - 7];
+  }
+
+  // Draw graph frame
+  last_x = x_pos + 1;
+  last_y = y_pos + (Y1Max - constrain(DataArray[0], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight;
+  drawRect(x_pos, y_pos, gwidth + 3, gheight + 2, DarkGrey);
+
+  // Title - different for 48H vs weekly
+  if (isWeeklyView) {
+    // Simple title for weekly
+    drawString(x_pos + gwidth / 2, y_pos - 28, title + " (" + unit + ")", CENTER);
+  } else {
+    // 48H: title with current value and trend
+    String titleWithCurrent = title + " ";
+    if (currentValue < 10 && currentValue > -10) {
+      titleWithCurrent += String(currentValue, 1);
+    } else {
+      titleWithCurrent += String((int)currentValue);
+    }
+    titleWithCurrent += unit;
+    if (trendValue > 0.5) titleWithCurrent += " +";
+    else if (trendValue < -0.5) titleWithCurrent += " -";
+    drawString(x_pos + gwidth / 2, y_pos - 28, titleWithCurrent, CENTER);
+  }
+
+  // Draw alternating background bands
+  for (int spacing = 0; spacing < y_minor_axis_hist; spacing++) {
+    if (spacing % 2 == 1) {
+      int bandY = y_pos + (gheight * spacing / y_minor_axis_hist);
+      int bandH = gheight / y_minor_axis_hist;
+      fillRect(x_pos + 1, bandY, gwidth, bandH, 0xDD);
+    }
+  }
+
+  // Draw dashed horizontal grid lines
+  const int number_of_dashes = 20;
+  for (int spacing = 0; spacing < y_minor_axis_hist; spacing++) {
+    for (int j = 0; j < number_of_dashes; j++) {
+      drawFastHLine((x_pos + 3 + j * gwidth / number_of_dashes), y_pos + (gheight * spacing / y_minor_axis_hist), gwidth / (2 * number_of_dashes), Grey);
+    }
+  }
+
+  // Draw vertical lines based on view type
+  if (hours_span > 0) {
+    float pixelsPerHour = (float)gwidth / hours_span;
+
+    if (isWeeklyView) {
+      // Weekly: only midnight lines - iterate through all hours in span
+      for (int hoursFromStart = 0; hoursFromStart < hours_span; hoursFromStart++) {
+        int hourOfDay = (start_hour + hoursFromStart) % 24;
+        if (hourOfDay == 0 && hoursFromStart > 0) {  // Midnight
+          int lineX = x_pos + (int)(hoursFromStart * pixelsPerHour);
+          if (lineX >= x_pos + 5 && lineX <= x_pos + gwidth - 5) {
+            drawFastVLine(lineX - 1, y_pos, gheight, DarkGrey);
+            drawFastVLine(lineX, y_pos, gheight, DarkGrey);
+            drawFastVLine(lineX + 1, y_pos, gheight, DarkGrey);
+          }
+        }
+      }
+    } else {
+      // 48H: lines every 6 hours
+      for (int hoursFromStart = 0; hoursFromStart < hours_span; hoursFromStart++) {
+        int hourOfDay = (start_hour + hoursFromStart) % 24;
+        if (hourOfDay % 6 == 0 && hoursFromStart > 0) {  // 0, 6, 12, 18
+          int lineX = x_pos + (int)(hoursFromStart * pixelsPerHour);
+          if (lineX >= x_pos && lineX <= x_pos + gwidth) {
+            if (hourOfDay == 0) {
+              // Midnight - thick line
+              drawFastVLine(lineX - 1, y_pos, gheight, DarkGrey);
+              drawFastVLine(lineX, y_pos, gheight, DarkGrey);
+              drawFastVLine(lineX + 1, y_pos, gheight, DarkGrey);
+            } else {
+              // 6, 12, 18 hours
+              drawFastVLine(lineX, y_pos, gheight, Grey);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Draw data lines ON TOP
+  for (int gx = 0; gx < readings; gx++) {
+    x2 = x_pos + gx * gwidth / (readings - 1) - 1;
+    y2 = y_pos + (Y1Max - constrain(DataArray[gx], Y1Min, Y1Max)) / (Y1Max - Y1Min) * gheight + 1;
+    if (barchart_mode) {
+      fillRect(x2, y2, 2, y_pos + gheight - y2 + 2, Black);
+    } else {
+      drawLine(last_x, last_y - 1, x2, y2 - 1, Black);
+      drawLine(last_x, last_y, x2, y2, Black);
+    }
+    last_x = x2;
+    last_y = y2;
+  }
+
+  // Draw Y axis values
+  for (int spacing = 0; spacing <= y_minor_axis_hist; spacing++) {
+    float axisValue = Y1Max - (float)(Y1Max - Y1Min) / y_minor_axis_hist * spacing + 0.01;
+    if (axisValue < 0.1) {
+      drawString(x_pos - 10, y_pos + gheight * spacing / y_minor_axis_hist - 5, "0", RIGHT);
+    } else if (axisValue < 5) {
+      drawString(x_pos - 10, y_pos + gheight * spacing / y_minor_axis_hist - 5, String(axisValue, 1), RIGHT);
+    } else {
+      drawString(x_pos - 7, y_pos + gheight * spacing / y_minor_axis_hist - 5, String(axisValue, 0), RIGHT);
+    }
+  }
+
+  // Hour labels and min/max only for 48H view
+  if (!isWeeklyView && hours_span > 0) {
+    setFont(OpenSans8B);
+    float pixelsPerHour = (float)gwidth / hours_span;
+
+    // Draw only 0, 6, 12, 18 hour labels where they fall in the data range
+    for (int hoursFromStart = 1; hoursFromStart < hours_span; hoursFromStart++) {
+      int hourOfDay = (start_hour + hoursFromStart) % 24;
+      if (hourOfDay == 0 || hourOfDay == 6 || hourOfDay == 12 || hourOfDay == 18) {
+        int labelX = x_pos + (int)(hoursFromStart * pixelsPerHour);
+        // Skip if too close to edges
+        if (labelX >= x_pos + 15 && labelX <= x_pos + gwidth - 15) {
+          drawString(labelX, y_pos + gheight + 2, String(hourOfDay), CENTER);
+        }
+      }
+    }
+
+    // Min/Max labels below graph
+    String minStr = "min:" + (dataMin < 10 ? String(dataMin, 1) : String((int)dataMin));
+    String maxStr = "max:" + (dataMax < 10 ? String(dataMax, 1) : String((int)dataMax));
+    drawString(x_pos + 3, y_pos + gheight + 14, minStr, LEFT);
+    drawString(x_pos + gwidth - 3, y_pos + gheight + 14, maxStr, RIGHT);
+  }
+}
+
 void drawString(int x, int y, String text, alignment align) {
   char * data  = const_cast<char*>(text.c_str());
   int  x1, y1; //the bounds of x,y and w and h of the variable 'text' in pixels.
@@ -2119,9 +2284,12 @@ void DisplayHistoryScreen() {
   int requestedHours = historyShowWeek ? 168 : 48;
   int readings = getReadingsForHours(requestedHours, hist_temp, hist_hum, hist_press, hist_rain, HISTORY_GRAPH_READINGS);
 
-  // Calculate actual hours from readings (10-min intervals = readings / 6)
-  int actualHours = (readings * 10) / 60;
+  // Get actual hours span from timestamps (not assuming 10-min intervals)
+  int actualHours = (int)getHistoryHoursSpan(requestedHours);
   if (actualHours < 1) actualHours = 1;
+
+  // Get start hour from oldest data timestamp
+  int startHour = getHistoryStartHour(requestedHours);
 
   if (readings < 2) {
     setFont(OpenSans12B);
@@ -2136,16 +2304,16 @@ void DisplayHistoryScreen() {
   int gy1 = 120, gy2 = 320;
 
   // Temperature - top left
-  DrawGraph(gx1, gy1, gwidth, gheight, 0, 40, "Temperatura (°C)", hist_temp, readings, autoscale_on, barchart_off, 0, actualHours);
+  DrawHistoryGraph(gx1, gy1, gwidth, gheight, 0, 40, "Temp", Units == "M" ? "°C" : "°F", hist_temp, readings, autoscale_on, barchart_off, actualHours, historyShowWeek, startHour);
 
   // Pressure - top right
-  DrawGraph(gx2, gy1, gwidth, gheight, 900, 1050, "Presion (hPa)", hist_press, readings, autoscale_on, barchart_off, 0, actualHours);
+  DrawHistoryGraph(gx2, gy1, gwidth, gheight, 900, 1050, "Presion", Units == "M" ? "hPa" : "in", hist_press, readings, autoscale_on, barchart_off, actualHours, historyShowWeek, startHour);
 
   // Humidity - bottom left
-  DrawGraph(gx1, gy2, gwidth, gheight, 0, 100, "Humedad (%)", hist_hum, readings, autoscale_off, barchart_off, 0, actualHours);
+  DrawHistoryGraph(gx1, gy2, gwidth, gheight, 0, 100, "Humedad", "%", hist_hum, readings, autoscale_off, barchart_off, actualHours, historyShowWeek, startHour);
 
   // Rainfall - bottom right
-  DrawGraph(gx2, gy2, gwidth, gheight, 0, 10, "Lluvia (mm)", hist_rain, readings, autoscale_on, barchart_on, 0, actualHours);
+  DrawHistoryGraph(gx2, gy2, gwidth, gheight, 0, 10, "Lluvia", Units == "M" ? "mm" : "in", hist_rain, readings, autoscale_on, barchart_on, actualHours, historyShowWeek, startHour);
 
   // Footer - info and description
   setFont(OpenSans10B);
