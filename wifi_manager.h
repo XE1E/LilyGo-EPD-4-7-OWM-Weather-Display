@@ -599,6 +599,12 @@ void loadConfig() {
   forceAPMode = preferences.getBool("forceAP", false);
 
   preferences.end();
+
+  // Validate ranges
+  if (config.update_interval < 5) config.update_interval = 5;
+  if (config.update_interval > 120) config.update_interval = 120;
+  if (config.sleep_timeout < 10) config.sleep_timeout = 10;
+  if (config.sleep_timeout > 300) config.sleep_timeout = 300;
 }
 
 // Save configuration to preferences

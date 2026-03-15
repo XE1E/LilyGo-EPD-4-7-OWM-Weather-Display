@@ -92,6 +92,116 @@ const char* TXT_UPDATED_ARR[] = { "Actualizado:", "Updated:", "Mis a jour:" };
 #define TXT_WIFI String(TXT_WIFI_ARR[currentLang])
 const char* TXT_UPDATED = "Updated:";  // Serial output always in English
 
+// ============== AP MODE / SLEEP ==============
+const char* TXT_AP_WIFI_CONFIG_MODE_ARR[] = { "Modo Configuracion WiFi", "WiFi Configuration Mode", "Mode Configuration WiFi" };
+const char* TXT_AP_CONNECT_TO_WIFI_ARR[] = { "Conectar a la red WiFi:", "Connect to WiFi network:", "Connectez-vous au reseau WiFi:" };
+const char* TXT_AP_PASSWORD_ARR[] = { "Contrasena:", "Password:", "Mot de passe:" };
+const char* TXT_AP_OPEN_BROWSER_ARR[] = { "Luego abrir en navegador:", "Then open in browser:", "Puis ouvrir dans le navigateur:" };
+const char* TXT_AP_DEVICE_RESTART_ARR[] = { "El dispositivo se reiniciara al guardar", "Device will restart when saving", "L'appareil redemarrera a l'enregistrement" };
+const char* TXT_AP_ATTEMPTS_REMAINING_ARR[] = { "Intentos restantes:", "Attempts remaining:", "Tentatives restantes:" };
+const char* TXT_AP_WIFI_FAILED_ARR[] = { "No se pudo conectar a WiFi", "Could not connect to WiFi", "Impossible de se connecter au WiFi" };
+const char* TXT_AP_ATTEMPTS_EXHAUSTED_ARR[] = { "Intentos agotados", "Attempts exhausted", "Tentatives epuisees" };
+const char* TXT_AP_PERMANENT_SLEEP_ARR[] = { "Entrando en modo sleep permanente", "Entering permanent sleep mode", "Entree en mode veille permanent" };
+const char* TXT_AP_PRESS_RESET_ARR[] = { "Presione RESET para reiniciar", "Press RESET to restart", "Appuyez sur RESET pour redemarrer" };
+
+#define TXT_AP_WIFI_CONFIG_MODE String(TXT_AP_WIFI_CONFIG_MODE_ARR[currentLang])
+#define TXT_AP_CONNECT_TO_WIFI String(TXT_AP_CONNECT_TO_WIFI_ARR[currentLang])
+#define TXT_AP_PASSWORD String(TXT_AP_PASSWORD_ARR[currentLang])
+#define TXT_AP_OPEN_BROWSER String(TXT_AP_OPEN_BROWSER_ARR[currentLang])
+#define TXT_AP_DEVICE_RESTART String(TXT_AP_DEVICE_RESTART_ARR[currentLang])
+#define TXT_AP_ATTEMPTS_REMAINING String(TXT_AP_ATTEMPTS_REMAINING_ARR[currentLang])
+#define TXT_AP_WIFI_FAILED String(TXT_AP_WIFI_FAILED_ARR[currentLang])
+#define TXT_AP_ATTEMPTS_EXHAUSTED String(TXT_AP_ATTEMPTS_EXHAUSTED_ARR[currentLang])
+#define TXT_AP_PERMANENT_SLEEP String(TXT_AP_PERMANENT_SLEEP_ARR[currentLang])
+#define TXT_AP_PRESS_RESET String(TXT_AP_PRESS_RESET_ARR[currentLang])
+
+// ============== UI LABELS ==============
+const char* TXT_VERSION_ARR[] = { "Version:", "Version:", "Version:" };
+const char* TXT_COMPILED_ARR[] = { "Compilado:", "Compiled:", "Compile:" };
+const char* TXT_FREE_HEAP_ARR[] = { "Heap Libre:", "Free Heap:", "Heap Libre:" };
+const char* TXT_TOTAL_HEAP_ARR[] = { "Heap Total:", "Total Heap:", "Heap Total:" };
+const char* TXT_DISCONNECTED_ARR[] = { "Desconectado", "Disconnected", "Deconnecte" };
+const char* TXT_WIFI_SIGNAL_ARR[] = { "Senal WiFi:", "WiFi Signal:", "Signal WiFi:" };
+const char* TXT_CITY_ARR[] = { "Ciudad:", "City:", "Ville:" };
+const char* TXT_COORDINATES_ARR[] = { "Coordenadas:", "Coordinates:", "Coordonnees:" };
+const char* TXT_TIMEZONE_ARR[] = { "Zona Horaria:", "Timezone:", "Fuseau Horaire:" };
+const char* TXT_LANGUAGE_ARR[] = { "Idioma:", "Language:", "Langue:" };
+const char* TXT_UNITS_ARR[] = { "Unidades:", "Units:", "Unites:" };
+const char* TXT_METRIC_ARR[] = { "Metrico", "Metric", "Metrique" };
+const char* TXT_IMPERIAL_ARR[] = { "Imperial", "Imperial", "Imperial" };
+const char* TXT_HEMISPHERE_ARR[] = { "Hemisferio:", "Hemisphere:", "Hemisphere:" };
+const char* TXT_NORTH_ARR[] = { "Norte", "North", "Nord" };
+const char* TXT_SOUTH_ARR[] = { "Sur", "South", "Sud" };
+const char* TXT_FORECAST_ARR[] = { "Pronostico:", "Forecast:", "Previsions:" };
+const char* TXT_DAYS_ARR[] = { "dias", "days", "jours" };
+const char* TXT_UPDATE_INTERVAL_ARR[] = { "Actualizacion:", "Update:", "Mise a jour:" };
+const char* TXT_ON_SLEEP_ARR[] = { "Al Dormir:", "On Sleep:", "En Veille:" };
+const char* TXT_KEEP_SCREEN_ARR[] = { "Mantener pantalla", "Keep screen", "Garder ecran" };
+const char* TXT_GO_MAIN_ARR[] = { "Ir a principal", "Go to main", "Aller au principal" };
+const char* TXT_WEB_CONFIG_ARR[] = { "Config Web:", "Web Config:", "Config Web:" };
+const char* TXT_WIFI_DISCONNECTED_ARR[] = { "WiFi desconectado", "WiFi disconnected", "WiFi deconnecte" };
+const char* TXT_CLEAN_SCREEN_ARR[] = { "Limpiar Pantalla", "Clean Screen", "Nettoyer Ecran" };
+const char* TXT_UPTIME_ARR[] = { "Tiempo activo:", "Uptime:", "Temps actif:" };
+const char* TXT_HISTORY_ARR[] = { "Historial", "History", "Historique" };
+const char* TXT_NOT_ENOUGH_DATA_ARR[] = { "Aun no hay suficientes datos", "Not enough data yet", "Pas encore assez de donnees" };
+const char* TXT_HISTORY_FILLS_ARR[] = { "El historial se llena con cada actualizacion", "History fills with each update", "L'historique se remplit a chaque maj" };
+const char* TXT_INSUFFICIENT_DATA_ARR[] = { "Datos insuficientes para graficar", "Insufficient data for graph", "Donnees insuffisantes pour graphique" };
+const char* TXT_READINGS_ARR[] = { "lecturas", "readings", "lectures" };
+const char* TXT_NEXT_DAYS_ARR[] = { "Proximos 5 dias", "Next 5 days", "Prochains 5 jours" };
+const char* TXT_GRAPH_TEMP_ARR[] = { "Temperatura", "Temperature", "Temperature" };
+const char* TXT_GRAPH_PRESSURE_ARR[] = { "Presion", "Pressure", "Pression" };
+const char* TXT_GRAPH_HUMIDITY_ARR[] = { "Humedad", "Humidity", "Humidite" };
+const char* TXT_GRAPH_RAIN_ARR[] = { "Lluvia", "Rainfall", "Pluie" };
+const char* TXT_MAX_ARR[] = { "Max", "Max", "Max" };
+const char* TXT_MIN_ARR[] = { "Min", "Min", "Min" };
+
+#define TXT_VERSION String(TXT_VERSION_ARR[currentLang])
+#define TXT_COMPILED String(TXT_COMPILED_ARR[currentLang])
+#define TXT_FREE_HEAP String(TXT_FREE_HEAP_ARR[currentLang])
+#define TXT_TOTAL_HEAP String(TXT_TOTAL_HEAP_ARR[currentLang])
+#define TXT_DISCONNECTED String(TXT_DISCONNECTED_ARR[currentLang])
+#define TXT_WIFI_SIGNAL String(TXT_WIFI_SIGNAL_ARR[currentLang])
+#define TXT_CITY String(TXT_CITY_ARR[currentLang])
+#define TXT_COORDINATES String(TXT_COORDINATES_ARR[currentLang])
+#define TXT_TIMEZONE String(TXT_TIMEZONE_ARR[currentLang])
+#define TXT_LANGUAGE String(TXT_LANGUAGE_ARR[currentLang])
+#define TXT_UNITS String(TXT_UNITS_ARR[currentLang])
+#define TXT_METRIC String(TXT_METRIC_ARR[currentLang])
+#define TXT_IMPERIAL String(TXT_IMPERIAL_ARR[currentLang])
+#define TXT_HEMISPHERE String(TXT_HEMISPHERE_ARR[currentLang])
+#define TXT_NORTH String(TXT_NORTH_ARR[currentLang])
+#define TXT_SOUTH String(TXT_SOUTH_ARR[currentLang])
+#define TXT_FORECAST String(TXT_FORECAST_ARR[currentLang])
+#define TXT_DAYS String(TXT_DAYS_ARR[currentLang])
+#define TXT_UPDATE_INTERVAL String(TXT_UPDATE_INTERVAL_ARR[currentLang])
+#define TXT_ON_SLEEP String(TXT_ON_SLEEP_ARR[currentLang])
+#define TXT_KEEP_SCREEN String(TXT_KEEP_SCREEN_ARR[currentLang])
+#define TXT_GO_MAIN String(TXT_GO_MAIN_ARR[currentLang])
+#define TXT_WEB_CONFIG String(TXT_WEB_CONFIG_ARR[currentLang])
+#define TXT_WIFI_DISCONNECTED String(TXT_WIFI_DISCONNECTED_ARR[currentLang])
+#define TXT_CLEAN_SCREEN String(TXT_CLEAN_SCREEN_ARR[currentLang])
+#define TXT_UPTIME String(TXT_UPTIME_ARR[currentLang])
+#define TXT_HISTORY String(TXT_HISTORY_ARR[currentLang])
+#define TXT_NOT_ENOUGH_DATA String(TXT_NOT_ENOUGH_DATA_ARR[currentLang])
+#define TXT_HISTORY_FILLS String(TXT_HISTORY_FILLS_ARR[currentLang])
+#define TXT_INSUFFICIENT_DATA String(TXT_INSUFFICIENT_DATA_ARR[currentLang])
+#define TXT_READINGS String(TXT_READINGS_ARR[currentLang])
+#define TXT_NEXT_DAYS String(TXT_NEXT_DAYS_ARR[currentLang])
+#define TXT_GRAPH_TEMP String(TXT_GRAPH_TEMP_ARR[currentLang])
+#define TXT_GRAPH_PRESSURE String(TXT_GRAPH_PRESSURE_ARR[currentLang])
+#define TXT_GRAPH_HUMIDITY String(TXT_GRAPH_HUMIDITY_ARR[currentLang])
+#define TXT_GRAPH_RAIN String(TXT_GRAPH_RAIN_ARR[currentLang])
+#define TXT_MAX String(TXT_MAX_ARR[currentLang])
+#define TXT_MIN String(TXT_MIN_ARR[currentLang])
+
+const char* TXT_48H_ARR[] = { "48 H", "48 H", "48 H" };
+const char* TXT_1WEEK_ARR[] = { "1 SEM", "1 WEEK", "1 SEM" };
+const char* TXT_SEC_ARR[] = { "seg", "sec", "sec" };
+
+#define TXT_48H String(TXT_48H_ARR[currentLang])
+#define TXT_1WEEK String(TXT_1WEEK_ARR[currentLang])
+#define TXT_SEC String(TXT_SEC_ARR[currentLang])
+
 // ============== WIND DIRECTIONS ==============
 // Wind directions are universal abbreviations
 const String TXT_N   = "N";
