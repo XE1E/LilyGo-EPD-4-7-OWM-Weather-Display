@@ -53,6 +53,8 @@ struct ConfigData {
   int update_interval;      // Weather update interval in minutes
   int sleep_timeout;        // Time before deep sleep in seconds
   bool keep_screen_on_sleep; // Keep current screen when entering deep sleep
+  int wakeup_hour;          // Hour to start updating (0-23)
+  int sleep_hour;           // Hour to stop updating (0-23)
 } config;
 
 // HTML page for configuration - Modern responsive design with tabs
@@ -407,6 +409,24 @@ const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
           </div>
         </div>
 
+        <div class="card">
+          <div class="card-title">Horario de Actividad (Ahorro de Bateria)</div>
+          <div class="form-group">
+            <label>Hora de Inicio (despertar)</label>
+            <input type="number" name="wakeup_hour" value="%WAKEUP_HOUR%" min="0" max="23">
+            <div class="hint">Hora a partir de la cual actualiza el clima (0-23)</div>
+          </div>
+          <div class="form-group">
+            <label>Hora de Fin (dormir)</label>
+            <input type="number" name="sleep_hour" value="%SLEEP_HOUR%" min="0" max="23">
+            <div class="hint">Hora a partir de la cual deja de actualizar (0-23)</div>
+          </div>
+          <div class="hint" style="margin-top:10px;padding:10px;background:#e3f2fd;border-radius:4px;">
+            <b>Ejemplo:</b> Inicio=7, Fin=23 = Activo de 7:00 a 23:00<br>
+            <b>Nota:</b> Si Inicio > Fin, funciona durante la noche (ej: 22 a 6)
+          </div>
+        </div>
+
         <div class="divider"></div>
 
         <div class="btn-group">
@@ -597,6 +617,8 @@ void loadConfig() {
   config.update_interval = preferences.getInt("updint", 30);
   config.sleep_timeout = preferences.getInt("sleept", 30);
   config.keep_screen_on_sleep = preferences.getBool("keepscr", false);
+  config.wakeup_hour = preferences.getInt("wakeuph", 7);
+  config.sleep_hour = preferences.getInt("sleeph", 23);
   forceAPMode = preferences.getBool("forceAP", false);
 
   preferences.end();
@@ -606,6 +628,10 @@ void loadConfig() {
   if (config.update_interval > 120) config.update_interval = 120;
   if (config.sleep_timeout < 10) config.sleep_timeout = 10;
   if (config.sleep_timeout > 300) config.sleep_timeout = 300;
+  if (config.wakeup_hour < 0) config.wakeup_hour = 0;
+  if (config.wakeup_hour > 23) config.wakeup_hour = 23;
+  if (config.sleep_hour < 0) config.sleep_hour = 0;
+  if (config.sleep_hour > 23) config.sleep_hour = 23;
 }
 
 // Save configuration to preferences
@@ -632,6 +658,8 @@ void saveConfig() {
   preferences.putInt("updint", config.update_interval);
   preferences.putInt("sleept", config.sleep_timeout);
   preferences.putBool("keepscr", config.keep_screen_on_sleep);
+  preferences.putInt("wakeuph", config.wakeup_hour);
+  preferences.putInt("sleeph", config.sleep_hour);
   preferences.putBool("forceAP", false);  // Clear force AP flag after save
 
   preferences.end();
@@ -693,6 +721,10 @@ String processTemplate(const char* page) {
   // Keep screen on sleep selection
   html.replace("%KEEP_SCREEN_OFF%", config.keep_screen_on_sleep ? "" : "selected");
   html.replace("%KEEP_SCREEN_ON%", config.keep_screen_on_sleep ? "selected" : "");
+
+  // Activity hours
+  html.replace("%WAKEUP_HOUR%", String(config.wakeup_hour));
+  html.replace("%SLEEP_HOUR%", String(config.sleep_hour));
 
   return html;
 }
@@ -815,6 +847,8 @@ void handleSave() {
   config.update_interval = webServer.arg("update_interval").toInt();
   config.sleep_timeout = webServer.arg("sleep_timeout").toInt();
   config.keep_screen_on_sleep = webServer.arg("keep_screen") == "1";
+  config.wakeup_hour = webServer.arg("wakeup_hour").toInt();
+  config.sleep_hour = webServer.arg("sleep_hour").toInt();
 
   saveConfig();
 
@@ -844,6 +878,8 @@ void handleReboot() {
   config.update_interval = webServer.arg("update_interval").toInt();
   config.sleep_timeout = webServer.arg("sleep_timeout").toInt();
   config.keep_screen_on_sleep = webServer.arg("keep_screen") == "1";
+  config.wakeup_hour = webServer.arg("wakeup_hour").toInt();
+  config.sleep_hour = webServer.arg("sleep_hour").toInt();
 
   saveConfig();
 

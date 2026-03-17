@@ -38,15 +38,16 @@ const unsigned long MAX_NAVIGATION_TIME_MS = 300000; // 5 minutes max
 
 // Main screen touch zones
 // Touch X and Y are both inverted: X=0 is physical right, Y=540 is physical top
+// Zones are evaluated in order - first match wins
 const TouchZone mainScreenZones[] = {
   // Battery/WiFi area top-right - System info (inverted: X 0-360, Y 480-540)
   {0, 480, 360, 540, SCREEN_INFO},
-  // Moon icon area - System info (X 810-960, Y 180-300)
-  {810, 180, 960, 300, SCREEN_INFO},
-  // Physical top 40% - current conditions (excluding battery area)
-  {360, 180, 960, 540, SCREEN_CURRENT_DETAIL},
+  // Moon icon area - System info (X 860-960, Y 170-310) - expanded zone
+  {860, 170, 960, 310, SCREEN_INFO},
+  // Physical top 40% - current conditions (excluding battery and moon areas)
+  {360, 180, 860, 540, SCREEN_CURRENT_DETAIL},
   {0, 180, 360, 480, SCREEN_CURRENT_DETAIL},
-  {810, 300, 960, 540, SCREEN_CURRENT_DETAIL},
+  {860, 310, 960, 540, SCREEN_CURRENT_DETAIL},
   // Physical middle 30% - 5-day forecast (Y 90-180)
   {0, 90, 960, 180, SCREEN_FORECAST},
   // Physical bottom 30% - graphs area split in two:

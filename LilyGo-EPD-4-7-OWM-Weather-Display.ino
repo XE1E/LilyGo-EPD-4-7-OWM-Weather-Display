@@ -697,6 +697,8 @@ void setup() {
 
   // Sync sleep duration with config
   SleepDuration = config.update_interval;
+  WakeupHour = config.wakeup_hour;
+  SleepHour = config.sleep_hour;
 
   // Initialize language based on config
   initLanguage(config.language);

@@ -11,8 +11,9 @@
 7. [Pantallas de Navegacion](#7-pantallas-de-navegacion)
 8. [API OpenWeatherMap](#8-api-openweathermap)
 9. [Gestion de Energia](#9-gestion-de-energia)
-10. [Solucion de Problemas](#10-solucion-de-problemas)
-11. [Apendice](#11-apendice)
+10. [Carcasa Impresa en 3D](#10-carcasa-impresa-en-3d)
+11. [Solucion de Problemas](#11-solucion-de-problemas)
+12. [Apendice](#12-apendice)
 
 ---
 
@@ -301,6 +302,8 @@ La configuracion se almacena en el namespace "weather" de ESP32 Preferences:
 | updint | Int | Intervalo actualizacion (min) |
 | sleept | Int | Tiempo antes de sleep (seg) |
 | keepscr | Bool | Mantener pantalla actual al dormir |
+| wakeuph | Int | Hora de inicio de actividad (0-23) |
+| sleeph | Int | Hora de fin de actividad (0-23) |
 
 ---
 
@@ -453,6 +456,8 @@ La pagina web esta organizada en 4 pestanas:
 - **Intervalo de Actualizacion**: 5-120 minutos
 - **Tiempo antes de Sleep**: 10-300 segundos
 - **Al dormir**: Regresar a pantalla principal o mantener pantalla actual
+- **Hora de Inicio (despertar)**: Hora a partir de la cual actualiza el clima (0-23)
+- **Hora de Fin (dormir)**: Hora a partir de la cual deja de actualizar (0-23)
 - **Guardar**: Solo guarda cambios
 - **Guardar y Reiniciar**: Guarda y aplica cambios
 - **Restablecer Fabrica**: Borra toda la configuracion
@@ -488,6 +493,40 @@ El ciclo completo:
 9. El ciclo se repite indefinidamente en esa pantalla
 
 **Uso tipico**: Si prefieres ver siempre la pantalla de Historial o Graficas, navega a ella una vez y configura "Mantener pantalla actual". El dispositivo mostrara esa pantalla en cada actualizacion.
+
+#### Horario de Actividad (Ahorro de Bateria)
+
+Esta funcion permite definir un horario en el que el dispositivo NO actualiza el clima, ahorrando bateria durante las horas en que no se necesita (ej: mientras duermes).
+
+**Configuracion**:
+- **Hora de Inicio**: Hora a partir de la cual el dispositivo COMIENZA a actualizar
+- **Hora de Fin**: Hora a partir de la cual el dispositivo DEJA de actualizar
+
+**Ejemplos**:
+
+| Inicio | Fin | Comportamiento |
+|--------|-----|----------------|
+| 7 | 23 | Activo de 7:00 a 23:00 (duerme de 23:00 a 7:00) |
+| 6 | 22 | Activo de 6:00 a 22:00 (duerme de 22:00 a 6:00) |
+| 22 | 6 | Activo de 22:00 a 6:00 - modo nocturno |
+| 0 | 24 | Siempre activo (sin ahorro) |
+
+**Nota**: Si Hora de Inicio > Hora de Fin, el dispositivo funciona durante la noche (cruza medianoche).
+
+```
+Ejemplo: Inicio=7, Fin=23
+
+        00:00       07:00                   23:00       24:00
+          |-----------|------------------------|-----------|
+          |  DUERME   |       ACTIVO           |  DUERME   |
+          | (no WiFi) | (actualiza cada X min) | (no WiFi) |
+```
+
+Durante las horas de "DUERME", el dispositivo:
+- NO conecta WiFi
+- NO actualiza el clima
+- Mantiene la ultima imagen en pantalla
+- Consume minima energia (~10uA)
 
 ### 5.4 Zonas Horarias Comunes
 
@@ -1037,9 +1076,129 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 
 ---
 
-## 10. Solucion de Problemas
+## 10. Carcasa Impresa en 3D
 
-### 10.1 No Se Conecta a WiFi
+### 10.1 Modelo Recomendado
+
+Se recomienda utilizar la carcasa disenada especificamente para la placa LilyGo T5 e-Paper 4.7":
+
+**Simple case for LilyGO T5 e-Paper 4.7" ESP32-S3 Board [H716]**
+- **Autor**: n602
+- **URL**: https://www.thingiverse.com/thing:6897183
+- **Licencia**: Creative Commons BY-NC-SA 4.0
+
+Esta carcasa esta disenada para la version TOUCH (modelo H716, V2.4) que es la utilizada en este proyecto.
+
+### 10.2 Archivos Incluidos
+
+| Archivo | Descripcion |
+|---------|-------------|
+| Bottom.stl | Base inferior de la carcasa |
+| Top.stl | Tapa superior |
+| Frame.stl | Marco para la pantalla |
+| Button.stl | Boton de acceso |
+| Heatsink.stl | Disipador de calor (opcional) |
+| *.STEP | Archivo CAD editable |
+
+### 10.3 Materiales Necesarios
+
+#### Para Impresion
+- Filamento PLA o PETG (~50g)
+- Impresora 3D con cama de al menos 150x150mm
+
+#### Hardware de Ensamblaje
+| Cantidad | Componente |
+|----------|------------|
+| 4 | Tornillos M3 x 15mm |
+| 4 | Tuercas M3 |
+
+### 10.4 Configuracion de Impresion
+
+| Parametro | Valor Recomendado |
+|-----------|-------------------|
+| Altura de capa | 0.2mm |
+| Relleno (Infill) | 20-30% |
+| Paredes | 3 perimetros |
+| Material | PLA o PETG |
+| Soportes | Si (necesarios) |
+| Brim/Raft | Opcional (mejora adherencia) |
+
+### 10.5 Instrucciones de Impresion
+
+#### Paso 1: Preparacion
+1. Descargar todos los archivos STL desde Thingiverse
+2. Importar en el slicer (Cura, PrusaSlicer, etc.)
+3. Orientar las piezas con la cara plana hacia abajo
+
+#### Paso 2: Configuracion del Slicer
+```
+Material:        PLA (mas facil) o PETG (mas resistente)
+Temperatura:     PLA 200-210C / PETG 230-245C
+Cama:            PLA 60C / PETG 70-80C
+Velocidad:       50-60 mm/s
+Soportes:        Activados (especialmente para Frame y Top)
+```
+
+#### Paso 3: Impresion
+1. Imprimir cada pieza por separado para mejores resultados
+2. Tiempo estimado total: 4-6 horas
+3. Dejar enfriar las piezas antes de retirar de la cama
+
+#### Paso 4: Post-Procesado
+1. Retirar cuidadosamente los soportes
+2. Lijar las rebabas con lija fina (grano 200-400)
+3. Verificar que los agujeros para tornillos esten limpios
+
+### 10.6 Ensamblaje
+
+```
++------------------+
+|    [Top.stl]     |  <- Tapa superior
++------------------+
+|  [Frame.stl]     |  <- Marco de pantalla
+|  +------------+  |
+|  |  PANTALLA  |  |
+|  +------------+  |
++------------------+
+|   [Bottom.stl]   |  <- Base con ESP32
++------------------+
+     [Button.stl]     <- Boton lateral
+```
+
+#### Pasos de Ensamblaje
+
+1. **Colocar la placa en Bottom.stl**
+   - Orientar la placa con los conectores USB accesibles
+   - Verificar que los agujeros de montaje coincidan
+
+2. **Instalar el Frame.stl**
+   - Colocar sobre la pantalla e-paper
+   - Asegurar que no presione la pantalla
+
+3. **Colocar Top.stl**
+   - Alinear con la base
+   - Verificar que la pantalla sea visible
+
+4. **Fijar con tornillos**
+   - Insertar los 4 tornillos M3 x 15mm
+   - Ajustar las tuercas M3 sin apretar demasiado
+
+5. **Instalar Button.stl** (opcional)
+   - Colocar en el hueco lateral
+   - Debe permitir acceso al boton BOOT
+
+### 10.7 Consejos Adicionales
+
+- **Tolerancias**: Si las piezas no encajan bien, escalar ligeramente (99-101%) en el slicer
+- **Color**: Usar filamento oscuro (negro/gris) mejora el contraste con la pantalla
+- **Ventilacion**: El disipador de calor es opcional pero recomendado para uso continuo
+- **Acceso SD**: Verificar que la ranura de tarjeta SD sea accesible despues del ensamblaje
+
+---
+
+## 11. Solucion de Problemas
+
+### 11.1 No Se Conecta a WiFi
 
 **Sintomas**: Entra en modo AP cada vez
 
@@ -1049,7 +1208,7 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 3. Asegurar que la red es 2.4GHz (no 5GHz)
 4. Mover el dispositivo mas cerca del router
 
-### 10.2 No Muestra Datos del Clima
+### 11.2 No Muestra Datos del Clima
 
 **Sintomas**: Pantalla en blanco o con "?"
 
@@ -1059,7 +1218,7 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 3. Verificar conexion a internet
 4. Revisar Serial Monitor para errores
 
-### 10.3 Pantalla con Ghosting
+### 11.3 Pantalla con Ghosting
 
 **Sintomas**: Imagenes anteriores visibles
 
@@ -1068,7 +1227,7 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 2. El proximo refresco completo lo limpiara
 3. Reiniciar el dispositivo para forzar limpieza
 
-### 10.4 Touch No Responde
+### 11.4 Touch No Responde
 
 **Sintomas**: No navega entre pantallas
 
@@ -1078,7 +1237,7 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 3. Tocar con firmeza por al menos 50ms
 4. Esperar 500ms entre toques (debounce)
 
-### 10.5 No Carga el Firmware
+### 11.5 No Carga el Firmware
 
 **Sintomas**: Error de conexion en Arduino IDE
 
@@ -1088,7 +1247,7 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 3. Verificar drivers USB instalados
 4. Cerrar Serial Monitor antes de cargar
 
-### 10.6 Consumo de Bateria Alto
+### 11.6 Consumo de Bateria Alto
 
 **Sintomas**: Bateria se agota rapido
 
@@ -1099,9 +1258,9 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 
 ---
 
-## 11. Apendice
+## 12. Apendice
 
-### 11.1 Fuentes Disponibles
+### 12.1 Fuentes Disponibles
 
 | Nombre | Tamano | Uso |
 |--------|--------|-----|
@@ -1115,7 +1274,7 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 | OpenSans24B | 24pt | Temperatura, datos principales |
 | OpenSans28B | 28pt | Numeros extra grandes |
 
-### 11.2 Coordenadas de Pantalla
+### 12.2 Coordenadas de Pantalla
 
 ```
 (0,0)--------------------------(960,0)
@@ -1125,7 +1284,7 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 (0,540)-----------------------(960,540)
 ```
 
-### 11.3 Direcciones del Viento
+### 12.3 Direcciones del Viento
 
 | Grados | Direccion |
 |--------|-----------|
@@ -1138,7 +1297,7 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 | 270 | W (Oeste) |
 | 315 | NW (Noroeste) |
 
-### 11.4 Fases Lunares
+### 12.4 Fases Lunares
 
 | Fase | Iluminacion | Nombre ES | Nombre EN |
 |------|-------------|-----------|-----------|
@@ -1151,7 +1310,7 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 | 6 | 50% | Cuarto Menguante | Third Quarter |
 | 7 | 25% | Luna Menguante | Waning Crescent |
 
-### 11.5 Textos Multi-idioma
+### 12.5 Textos Multi-idioma
 
 El sistema soporta 3 idiomas configurables:
 
@@ -1171,7 +1330,7 @@ El sistema soporta 3 idiomas configurables:
 | 48 Horas | 48H | 48H | 48H |
 | 1 Semana | 1 Semana | 1 Week | 1 Semaine |
 
-### 11.6 Licencia y Creditos
+### 12.6 Licencia y Creditos
 
 **Software Original**: David Bird 2021
 **Modificaciones**: XE1E 2024
