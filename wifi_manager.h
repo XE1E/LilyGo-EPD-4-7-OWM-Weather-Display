@@ -850,6 +850,9 @@ bool webServerRunning = false;
 
 bool isWebActive() {
   if (!webServerRunning) return false;
+  // Only consider active if there was an actual web request (lastWebRequestTime > 0)
+  // and it happened within the timeout period
+  if (lastWebRequestTime == 0) return false;
   return (millis() - lastWebRequestTime) < WEB_ACTIVITY_TIMEOUT;
 }
 

@@ -40,8 +40,16 @@
 
 #include <WiFi.h>               // In-built
 #include <SPI.h>                // In-built
+#include <SD.h>                 // In-built - for SD card storage
 #include <time.h>               // In-built
 #include <FFat.h>               // In-built - for weather history storage (uses FATFS partition)
+
+// SD Card pins for LilyGo T5 4.7" S3 (from official LilyGo-EPD47 repo)
+#define SD_CS    42
+#define SD_MOSI  15
+#define SD_MISO  16
+#define SD_CLK   11
+bool sdCardAvailable = false;
 
 #include "owm_credentials.h"
 #include "wifi_manager.h"       // AP mode and captive portal
@@ -112,6 +120,7 @@ const unsigned long AP_RETRY_TIMEOUT = 60000;  // 1 minute timeout to retry WiFi
 const int AP_MAX_RETRIES = 5;  // Max WiFi connection attempts before permanent sleep
 int apRetryCount = 0;
 
+
 //fonts
 #include "opensans8b.h"
 #include "opensans9b.h"
@@ -139,6 +148,7 @@ String TitleCase(String text);
 String ConvertUnixTime(int unix_time);
 void DrawGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode, int title_x_offset = 0, int hours_span = 0);
 void DrawHistoryGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min, float Y1Max, String title, String unit, float DataArray[], int readings, boolean auto_scale, boolean barchart_mode, int hours_span, boolean weekly_view, int start_hour);
+void DrawSDCard(int x, int y);
 float SumOfPrecip(float DataArray[], int readings);
 void drawString(int x, int y, String text, alignment align);
 void drawScreenHeader();
@@ -176,6 +186,7 @@ void BeginSleep() {
   displayPowerOff();
   UpdateLocalTime();
   SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)) + Delta; //Some ESP32 have a RTC that is too fast to maintain accurate time, so add an offset
+
   esp_sleep_enable_timer_wakeup(SleepTimer * 1000000LL); // in Secs, 1000000LL converts to Secs as unit = 1uSec
   Serial.println("Awake for : " + String((millis() - StartTime) / 1000.0, 3) + "-secs");
   Serial.println("Entering " + String(SleepTimer) + " (secs) of sleep time");
@@ -301,16 +312,41 @@ void StopWiFi() {
   Serial.println("WiFi switched Off");
 }
 
+
 void InitialiseSystem() {
   StartTime = millis();
   Serial.begin(115200);
   delay(200); // Reduced from 1000ms - enough for serial init
-  pinMode(21, INPUT);  // SENSOP_VN
   Serial.println(String(__FILE__) + "\nStarting...");
   epd_init();
   framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
   if (!framebuffer) Serial.println("Memory alloc failed!");
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
+}
+
+// Initialize SD card
+bool initSDCard() {
+  SPI.begin(SD_CLK, SD_MISO, SD_MOSI, SD_CS);
+  if (!SD.begin(SD_CS)) {
+    Serial.println("SD Card: Not found or failed to mount");
+    return false;
+  }
+
+  uint8_t cardType = SD.cardType();
+  if (cardType == CARD_NONE) {
+    Serial.println("SD Card: No card inserted");
+    return false;
+  }
+
+  String type = "UNKNOWN";
+  if (cardType == CARD_MMC) type = "MMC";
+  else if (cardType == CARD_SD) type = "SD";
+  else if (cardType == CARD_SDHC) type = "SDHC";
+
+  uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+  Serial.printf("SD Card: %s, %lluMB\n", type.c_str(), cardSize);
+
+  return true;
 }
 
 // Track if display is powered on for navigation
@@ -466,7 +502,7 @@ void handleTouchNavigation() {
     navigationModeActive = false;
     refreshScreen();  // Full refresh before sleep
     displayPowerOff();
-    delay(100);  // Reduced from 500ms - just enough for display to stabilize
+    delay(100);
     BeginSleep();
   }
 }
@@ -548,7 +584,7 @@ void loop() {
   // Handle web server requests for configuration
   handleWebServer();
 
-  // Always handle touch navigation
+  // Handle touch navigation
   handleTouchNavigation();
   delay(100);  // Reduce CPU load while polling
 }
@@ -632,10 +668,11 @@ void setup() {
     Serial.println("Warning: Touch controller not available");
   }
 
-  // Initialize weather history (SPIFFS)
-  if (initWeatherHistory()) {
-    Serial.printf("Weather history: %d readings (%.1f days)\n", historyCount, getHistoryDays());
-  }
+  // Initialize SD card
+  sdCardAvailable = initSDCard();
+
+  // Initialize weather history (SD if available, FFat as fallback)
+  initWeatherHistory();
 
   // Load stored configuration
   loadConfig();
@@ -723,9 +760,7 @@ void setup() {
     return;  // Stay in loop() for AP mode handling
   }
 
-  if(digitalRead(21)) {  // SENSOP_VN button NOT pressed
-    BeginSleep();
-  }
+  BeginSleep();
 }
 
 void Convert_Readings_to_Imperial() { // Only the first 3-hours are used
@@ -794,6 +829,7 @@ bool DecodeWeather(WiFiClient& json, String Type) {
       //WxForecast[r].Winddir           = list[r]["wind"]["deg"].as<float>();               Serial.println("WDir: " + String(WxForecast[r].Winddir));
       WxForecast[r].Rainfall          = list[r]["rain"]["3h"].as<float>();                Serial.println("Rain: " + String(WxForecast[r].Rainfall));
       WxForecast[r].Snowfall          = list[r]["snow"]["3h"].as<float>();                Serial.println("Snow: " + String(WxForecast[r].Snowfall));
+      WxForecast[r].Pop               = list[r]["pop"].as<float>();                       Serial.println("PoP:  " + String(WxForecast[r].Pop));
       WxForecast[r].Period            = list[r]["dt_txt"].as<char*>();                    Serial.println("Peri: " + String(WxForecast[r].Period));
     }
     //------------------------------------------
@@ -1241,8 +1277,10 @@ void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
 
 void DisplayStatusSection(int x, int y, int rssi) {
   setFont(OpenSans10B);
-  DrawRSSI(x + 295, y + 15, rssi);
-  DrawBattery(x+100, y);
+  // Layout: [Battery icon + text below] [SD icon] [WiFi signal]
+  DrawBattery(x + 180, y);          // Battery +100px to right
+  DrawSDCard(x + 263, y - 10);      // SD icon (2px up, 2px left)
+  DrawRSSI(x + 295, y + 15, rssi);  // WiFi signal (unchanged)
 }
 
 void DrawRSSI(int x, int y, int rssi) {
@@ -1261,6 +1299,25 @@ void DrawRSSI(int x, int y, int rssi) {
   // Show signal strength in dBm below bars
   setFont(OpenSans8B);
   drawString(x + 25, y + 8, String(rssi) + "dB", CENTER);
+}
+
+// Draw SD card icon (only when SD is available)
+void DrawSDCard(int x, int y) {
+  if (!sdCardAvailable) return;
+
+  // SD card shape: 20x26 pixels with cut corner
+  // Main body
+  fillRect(x, y + 6, 20, 20, Black);
+  // Cut corner (top-right)
+  fillRect(x + 14, y, 6, 6, Black);
+  fillTriangle(x + 14, y, x + 20, y, x + 20, y + 6, White);
+  // Inner lines (contact pins representation)
+  for (int i = 0; i < 4; i++) {
+    fillRect(x + 3 + i * 4, y + 10, 2, 10, White);
+  }
+  // "SD" text below
+  setFont(OpenSans8B);
+  drawString(x + 10, y + 28, "SD", CENTER);
 }
 
 boolean UpdateLocalTime() {
@@ -1299,18 +1356,20 @@ void DrawBattery(int x, int y) {
     Serial.printf("eFuse Vref:%u mV", adc_chars.vref);
     vref = adc_chars.vref;
   }
-  float voltage = analogRead(14) / 4096.0 * 6.566 * (vref / 1000.0); 
+  float voltage = analogRead(14) / 4096.0 * 6.566 * (vref / 1000.0);
   Serial.println("\nVoltage = " + String(voltage));
-  //voltage = 4.0; // TODO
   if (voltage > 1 ) { // Only display if there is a valid reading
     int pct = (voltage - 3.2) * 100;  // 3.2V=0%, 4.2V=100%
     if (pct > 100) pct = 100;
     if (pct < 0) pct = 0;
     percentage = pct;
-    drawRect(x + 25, y - 14, 40, 15, Black);
-    fillRect(x + 65, y - 10, 4, 7, Black);
-    fillRect(x + 27, y - 12, 36 * percentage / 100.0, 11, Black);
-    drawString(x + 85, y - 14, String(percentage) + "%  " + String(voltage, 1) + "v", LEFT);
+    // Battery icon on top
+    drawRect(x, y - 14, 42, 15, Black);           // Battery outline (42px wide)
+    fillRect(x + 42, y - 10, 4, 7, Black);        // Battery tip
+    fillRect(x + 2, y - 12, 38 * percentage / 100.0, 11, Black);  // Fill level
+    // Percentage and voltage below icon
+    setFont(OpenSans8B);
+    drawString(x + 20, y + 5, String(percentage) + "% " + String(voltage, 1) + "v", CENTER);
   }
 }
 
@@ -1978,11 +2037,29 @@ void DisplayCurrentDetailScreen() {
   int col1X = 230, col2X = 510, col3X = 760;
   int topY = 110;
 
+  // Arrow position for trend indicators (shaft + head style, like main screen but larger)
+  int arrowY = topY + 15; // Centered with text
+
   // Temperature - value large, unit small aligned at bottom
   setFont(OpenSans24B);
   drawString(col1X, topY, String(WxConditions[0].Temperature, 1), RIGHT);
   setFont(OpenSans14B);
   drawString(col1X, topY + 10, tempUnit, LEFT);
+  // Temperature trend arrow (compare current vs forecast)
+  int tempArrowX = col1X + 65;
+  if (WxConditions[0].Temperature < WxForecast[0].Temperature) {
+    // Up arrow (will get warmer)
+    fillRect(tempArrowX - 3, arrowY + 3, 6, 16, Grey);  // Shaft
+    fillTriangle(tempArrowX, arrowY - 5, tempArrowX - 8, arrowY + 5, tempArrowX + 8, arrowY + 5, Grey);  // Head
+  } else if (WxConditions[0].Temperature > WxForecast[0].Temperature) {
+    // Down arrow (will get cooler)
+    fillRect(tempArrowX - 3, arrowY - 10, 6, 16, Grey);  // Shaft
+    fillTriangle(tempArrowX, arrowY + 12, tempArrowX - 8, arrowY + 2, tempArrowX + 8, arrowY + 2, Grey);  // Head
+  } else {
+    // Right arrow (stable)
+    fillRect(tempArrowX - 10, arrowY - 3, 18, 6, Grey);  // Shaft horizontal
+    fillTriangle(tempArrowX + 14, arrowY, tempArrowX + 4, arrowY - 8, tempArrowX + 4, arrowY + 8, Grey);  // Head
+  }
   setFont(OpenSans10B);
   drawString(col1X - 25, topY + 45, TXT_MAX + " " + String(WxConditions[0].High, 0) + " / " + TXT_MIN + " " + String(WxConditions[0].Low, 0), CENTER);
 
@@ -1993,6 +2070,21 @@ void DisplayCurrentDetailScreen() {
   drawString(col2X, topY, String(pressValue, 0), RIGHT);
   setFont(OpenSans14B);
   drawString(col2X, topY + 10, pressUnit, LEFT);
+  // Pressure trend arrow (using existing trend calculation)
+  int pressArrowX = col2X + 75;
+  if (WxConditions[0].Trend == "+") {
+    // Up arrow (pressure rising)
+    fillRect(pressArrowX - 3, arrowY + 3, 6, 16, Grey);  // Shaft
+    fillTriangle(pressArrowX, arrowY - 5, pressArrowX - 8, arrowY + 5, pressArrowX + 8, arrowY + 5, Grey);  // Head
+  } else if (WxConditions[0].Trend == "-") {
+    // Down arrow (pressure falling)
+    fillRect(pressArrowX - 3, arrowY - 10, 6, 16, Grey);  // Shaft
+    fillTriangle(pressArrowX, arrowY + 12, pressArrowX - 8, arrowY + 2, pressArrowX + 8, arrowY + 2, Grey);  // Head
+  } else {
+    // Right arrow (stable)
+    fillRect(pressArrowX - 10, arrowY - 3, 18, 6, Grey);  // Shaft horizontal
+    fillTriangle(pressArrowX + 14, arrowY, pressArrowX + 4, arrowY - 8, pressArrowX + 4, arrowY + 8, Grey);  // Head
+  }
   setFont(OpenSans10B);
   drawString(col2X - 20, topY + 45, TXT_PRESSURE, CENTER);
 
@@ -2001,6 +2093,21 @@ void DisplayCurrentDetailScreen() {
   drawString(col3X, topY, String(WxConditions[0].Humidity, 0), RIGHT);
   setFont(OpenSans14B);
   drawString(col3X, topY + 10, "%", LEFT);
+  // Humidity trend arrow (compare current vs forecast)
+  int humArrowX = col3X + 50;
+  if (WxConditions[0].Humidity < WxForecast[0].Humidity) {
+    // Up arrow (will get more humid)
+    fillRect(humArrowX - 3, arrowY + 3, 6, 16, Grey);  // Shaft
+    fillTriangle(humArrowX, arrowY - 5, humArrowX - 8, arrowY + 5, humArrowX + 8, arrowY + 5, Grey);  // Head
+  } else if (WxConditions[0].Humidity > WxForecast[0].Humidity) {
+    // Down arrow (will get less humid)
+    fillRect(humArrowX - 3, arrowY - 10, 6, 16, Grey);  // Shaft
+    fillTriangle(humArrowX, arrowY + 12, humArrowX - 8, arrowY + 2, humArrowX + 8, arrowY + 2, Grey);  // Head
+  } else {
+    // Right arrow (stable)
+    fillRect(humArrowX - 10, arrowY - 3, 18, 6, Grey);  // Shaft horizontal
+    fillTriangle(humArrowX + 14, arrowY, humArrowX + 4, arrowY - 8, humArrowX + 4, arrowY + 8, Grey);  // Head
+  }
   setFont(OpenSans10B);
   drawString(col3X - 15, topY + 45, TXT_HUMIDITY, CENTER);
 
@@ -2017,7 +2124,7 @@ void DisplayCurrentDetailScreen() {
   drawString(220, 385, TitleCase(WxConditions[0].Forecast0), CENTER);
 
   // Right: Visibility, Wind, Clouds, Feels Like
-  int rightColLabel = 675, rightColValue = 805;
+  int rightColLabel = 645, rightColValue = 685;  // Values closer to labels
   int row1Y = 225, row2Y = 270, row3Y = 315, row4Y = 360;
 
   setFont(OpenSans12B);
@@ -2028,10 +2135,11 @@ void DisplayCurrentDetailScreen() {
 
   setFont(OpenSans18B);
   float visKm = WxConditions[0].Visibility / 1000.0;
-  drawString(rightColValue, row1Y - 5, String(visKm, 1) + " km", CENTER);
-  drawString(rightColValue, row2Y - 5, String(WxConditions[0].Windspeed, 1) + ((Units == "M") ? " m/s" : " mph"), CENTER);
-  drawString(rightColValue, row3Y - 5, String(WxConditions[0].Cloudcover) + "%", CENTER);
-  drawString(rightColValue, row4Y - 5, String(WxConditions[0].Feelslike, 1) + tempUnit, CENTER);
+  String windDir = WindDegToOrdinalDirection(WxConditions[0].Winddir);
+  drawString(rightColValue, row1Y - 5, String(visKm, 1) + " km", LEFT);
+  drawString(rightColValue, row2Y - 5, windDir + " - " + String(WxConditions[0].Windspeed, 1) + ((Units == "M") ? " m/s" : " mph"), LEFT);
+  drawString(rightColValue, row3Y - 5, String(WxConditions[0].Cloudcover) + "%", LEFT);
+  drawString(rightColValue, row4Y - 5, String(WxConditions[0].Feelslike, 1) + tempUnit, LEFT);
 
   // === BOTTOM SECTION: Sunrise, Sunset, Rain Probability ===
   drawFastHLine(50, 420, SCREEN_WIDTH - 100, Grey);
@@ -2377,9 +2485,16 @@ void DisplayHistoryScreen() {
   // Rainfall - bottom right
   DrawHistoryGraph(gx2, gy2, gwidth, gheight, 0, 10, TXT_GRAPH_RAIN, Units == "M" ? "mm" : "in", hist_rain, readings, autoscale_on, barchart_on, actualHours, historyShowWeek, startHour);
 
-  // Footer - readings count
+  // Footer - readings count and storage type
   setFont(OpenSans10B);
   String histInfo = String(historyCount) + " " + TXT_READINGS + " / " + String(getHistoryDays(), 1) + " " + TXT_DAYS;
+
+  // Show storage indicator if SD available
+  if (sdCardAvailable) {
+    int totalSD = getTotalHistoryReadings();
+    histInfo = histInfo + " [SD: " + String(totalSD) + "]";
+  }
+
   drawString(SCREEN_WIDTH / 2, 505, histInfo, CENTER);
 }
 

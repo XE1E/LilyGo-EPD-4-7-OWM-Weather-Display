@@ -25,12 +25,14 @@ La Estacion Meteorologica LilyGo EPD 4.7" es un dispositivo basado en ESP32-S3 q
 ### 1.2 Caracteristicas Principales
 
 - **Pantalla e-paper de 4.7 pulgadas** - 960x540 pixeles, escala de grises
-- **Navegacion tactil** - Controlador GT911 para interaccion con el usuario
+- **Navegacion tactil** - Controlador GT911 con 6 pantallas navegables
 - **Multi-WiFi** - Soporte para hasta 3 redes WiFi configurables
-- **Modo AP (Access Point)** - Portal cautivo para configuracion sin necesidad de programacion
+- **Modo AP (Access Point)** - Portal cautivo para configuracion inicial
+- **Servidor web integrado** - Configuracion desde cualquier navegador en la red local
 - **Deep Sleep** - Bajo consumo para operacion con bateria
 - **Multi-idioma** - Espanol, Ingles y Frances
-- **Actualizacion automatica** - Intervalo configurable de actualizacion de datos
+- **Actualizacion automatica** - Intervalo configurable (5-120 minutos)
+- **Historial de datos** - Almacena lecturas reales para ver tendencias (SD: ~1 año, interno: ~7 dias)
 
 ---
 
@@ -77,6 +79,23 @@ La Estacion Meteorologica LilyGo EPD 4.7" es un dispositivo basado en ESP32-S3 q
 | Consumo activo | ~150mA |
 | Consumo deep sleep | ~10uA |
 | Pin ADC bateria | GPIO 14 |
+
+#### Botones
+| Parametro | Especificacion |
+|-----------|----------------|
+| Boton BOOT | GPIO 0 (modo bootloader) |
+| Boton RST | Reset hardware |
+
+#### Lector SD Card
+| Parametro | Especificacion |
+|-----------|----------------|
+| Interfaz | SPI |
+| CS (Chip Select) | GPIO 42 |
+| MOSI | GPIO 15 |
+| MISO | GPIO 16 |
+| CLK | GPIO 11 |
+| Formatos soportados | FAT32, exFAT |
+| Tamano maximo | Sin limite (probado hasta 64GB) |
 
 ### 2.2 Principios de la Tecnologia E-Paper
 
@@ -221,7 +240,9 @@ LilyGo-EPD-4-7-OWM-Weather-Display/
 |
 +-- touch_handler.h       # Controlador tactil GT911
 |
-+-- opensans*.h           # Fuentes (8B, 9B, 10B, 12B, 14B, 16B, 18B, 24B)
++-- weather_history.h     # Sistema de historial de datos (SD + FFat + PSRAM)
+|
++-- opensans*.h           # Fuentes (6, 8B, 9B, 10B, 12B, 14B, 16B, 18B, 24B, 28B)
 |
 +-- moon.h                # Imagen de la luna
 +-- sunrise.h             # Icono amanecer
@@ -279,6 +300,7 @@ La configuracion se almacena en el namespace "weather" de ESP32 Preferences:
 | dst | Int | Offset horario de verano |
 | updint | Int | Intervalo actualizacion (min) |
 | sleept | Int | Tiempo antes de sleep (seg) |
+| keepscr | Bool | Mantener pantalla actual al dormir |
 
 ---
 
@@ -430,9 +452,42 @@ La pagina web esta organizada en 4 pestanas:
 #### Tab 4: Sistema
 - **Intervalo de Actualizacion**: 5-120 minutos
 - **Tiempo antes de Sleep**: 10-300 segundos
+- **Al dormir**: Regresar a pantalla principal o mantener pantalla actual
 - **Guardar**: Solo guarda cambios
 - **Guardar y Reiniciar**: Guarda y aplica cambios
 - **Restablecer Fabrica**: Borra toda la configuracion
+
+#### Comportamiento "Al dormir" (detalle)
+
+Esta opcion controla que pantalla se muestra despues de cada ciclo de actualizacion:
+
+**Opcion 1: Regresar a pantalla principal**
+```
+[Pantalla X] --timeout 30s--> [Pantalla Principal] --> [Sleep]
+     |                                                     |
+     +--<-- [Despertar] <-- [WiFi+API] <-- [30 min] <------+
+```
+Siempre regresa a la pantalla principal antes de dormir y al despertar.
+
+**Opcion 2: Mantener pantalla actual**
+```
+[Pantalla X] --timeout 30s--> [Guarda en NVS] --> [Sleep]
+     ^                                               |
+     |                                               v
+     +--[Muestra Pantalla X]<--[WiFi+API]<--[30 min]+
+```
+El ciclo completo:
+1. Navegas a una pantalla secundaria (ej: Historial)
+2. Despues de 30 segundos sin tocar, guarda la pantalla actual
+3. Entra en deep sleep
+4. Despierta segun el intervalo configurado (ej: 30 min)
+5. Conecta WiFi, sincroniza hora, obtiene datos del clima
+6. Guarda lectura en historial
+7. Muestra la MISMA pantalla donde estabas (Historial)
+8. Despues de 30 segundos, vuelve a dormir
+9. El ciclo se repite indefinidamente en esa pantalla
+
+**Uso tipico**: Si prefieres ver siempre la pantalla de Historial o Graficas, navega a ella una vez y configura "Mantener pantalla actual". El dispositivo mostrara esa pantalla en cada actualizacion.
 
 ### 5.4 Zonas Horarias Comunes
 
@@ -456,9 +511,11 @@ La pagina web esta organizada en 4 pestanas:
 2. **Conexion WiFi** - Busca redes configuradas
 3. **Sincronizacion** - Obtiene hora via NTP
 4. **Datos clima** - Descarga de OpenWeatherMap
-5. **Visualizacion** - Muestra la pantalla principal
-6. **Navegacion** - 30 segundos para interactuar
-7. **Sleep** - Entra en modo de bajo consumo
+5. **Historial** - Guarda lectura en el historial local
+6. **Visualizacion** - Muestra la pantalla configurada (principal o la ultima visitada)
+7. **Servidor web** - Disponible para configuracion en http://[IP_LOCAL]
+8. **Navegacion** - 30 segundos para interactuar
+9. **Sleep** - Entra en modo de bajo consumo (ver seccion 5.3 "Al dormir")
 
 ### 6.2 Ciclo de Actualizacion
 
@@ -469,12 +526,26 @@ La pagina web esta organizada en 4 pestanas:
     +------ (intervalo configurado, ej: 30 minutos) -----------+
 ```
 
+**Nota**: La pantalla mostrada en [Display] depende de la configuracion "Al dormir":
+- **Regresar a principal**: Siempre muestra la pantalla principal
+- **Mantener pantalla**: Muestra la ultima pantalla visitada antes de dormir
+
+Ver seccion 5.3 para detalles completos del comportamiento.
+
 ### 6.3 Indicadores en Pantalla
 
 #### Barra de Estado (esquina superior derecha)
-- **Barras WiFi**: Intensidad de senal (1-5 barras)
-- **dB**: Valor RSSI en decibeles
-- **Bateria**: Porcentaje y voltaje
+
+```
+[Bateria]  [SD]  [WiFi]
+ 85% 4.1v         -65dB
+```
+
+| Indicador | Descripcion |
+|-----------|-------------|
+| Bateria | Icono con nivel de carga, porcentaje y voltaje debajo |
+| SD | Icono de tarjeta SD (solo visible si hay SD insertada) |
+| WiFi | Barras de intensidad (1-5) con valor RSSI en dB |
 
 #### Colores/Tonos
 - **Negro**: Informacion principal
@@ -488,55 +559,77 @@ La pagina web esta organizada en 4 pestanas:
 
 ### 7.1 Sistema de Navegacion Tactil
 
-El dispositivo tiene 5 pantallas navegables tocando diferentes zonas:
+El dispositivo tiene **6 pantallas** navegables tocando diferentes zonas:
 
 ```
 Pantalla Principal (SCREEN_MAIN)
-+--------------------------------+
-| [Ciudad]        [Bat%][WiFi]  |  <-- Zona Bateria/WiFi (esquina sup-der)
-|                                |      -> Pantalla 4: Informacion Sistema
-+--------------------------------+
-|                                |  <-- Zona superior (40%)
-|    Toca aqui para             |      -> Pantalla 1: Detalles
-|    Condiciones Actuales        |
-|                                |
-+--------------------------------+
-|                                |  <-- Zona media (30%)
-|    Toca aqui para             |      -> Pantalla 2: Pronostico
-|    Pronostico Extendido        |
-|                                |
-+--------------------------------+
-|    [Graficas]                  |  <-- Zona inferior (30%)
-|    Toca aqui para             |      -> Pantalla 3: Graficas
-|    Graficas Expandidas         |
-+--------------------------------+
++-------------------------------------+
+| [Ciudad]       [Bat][SD][WiFi]<-|  Zona Info (esquina sup-der)
+| [Fecha] @ [Hora]                 |  -> Pantalla 5: Info Sistema
++==================================+
+|                                  |
+| [Rosa Vientos]   [Temp] [Hum]   |  Zona superior
+|                  [Max/Min]      |  -> Pantalla 1: Condiciones
+| [Luna][Sol]      [Descripcion]  |     Actuales
+|                  [ICONO]        |
+|                                  |
++==================================+
+| [+3h] [+6h] [+9h] ... [+21h]    |  Zona media (pronostico horas)
+|  Pronostico por horas con iconos |  -> Pantalla 2: Pronostico
++================+=================+
+| [Temp] [Pres]  | [Hum] [Lluvia] |  Zona inferior DIVIDIDA:
+|   Graficas     |    Graficas    |  Izquierda -> Pant 5: Historial
+|   (3 dias)     |    (3 dias)    |  Derecha   -> Pant 3: Tendencias
++----------------+-----------------+
 ```
 
 **Regresar**: Tocar cualquier parte de una pantalla secundaria regresa a la principal.
 
+**Nota**: El area del icono de la Luna tambien lleva a la pantalla de Info Sistema.
+
 ### 7.2 Pantalla Principal (Main)
 
 ```
-+--[Ciudad]--------------------[Bateria][WiFi]--+
-|  [Fecha]  @ [Hora]                            |
-+-----------------------------------------------+
++--[Ciudad]--------------[Bateria][SD][WiFi]--+
+|                         85% 4.1v            |
+|  [Fecha]  @ [Hora]                          |
++---------------------------------------------+
 |                                               |
 | [Rosa de Vientos]  [Temperatura] [Humedad]    |
 |     [Direccion]    [Max/Min]                  |
 |     [Velocidad]    [Descripcion clima]        |
-|                    [Presion] [Visib] [Nubes]  |
+|                    [Sensacion termica]        |
 |                                               |
 | [Luna]  [Salida sol]              [ICONO]     |
 | [Fase]  [Puesta sol]              [Grande]    |
 |                                               |
 +-----------------------------------------------+
 | [+3h] [+6h] [+9h] [+12h] [+15h] [+18h] [+21h] |
-|  Pronostico por horas con iconos              |
+|  Pronostico por horas (7 columnas)            |
 +-----------------------------------------------+
-| [Presion]  [Temperatura]  [Humedad]  [Lluvia] |
-|    Graficas de tendencias (3 dias)            |
+| [Temperatura] [Presion] [Humedad] [Lluvia]    |
+|    4 mini-graficas de tendencias (3 dias)     |
 +-----------------------------------------------+
 ```
+
+#### Elementos de la Pantalla Principal
+
+| Elemento | Descripcion |
+|----------|-------------|
+| Ciudad | Nombre de la ubicacion configurada |
+| Bateria | Icono con nivel de carga, porcentaje y voltaje debajo |
+| SD | Icono de tarjeta SD (solo visible si hay SD insertada) |
+| WiFi | Barras de señal WiFi con nivel en dB |
+| Fecha/Hora | Fecha actual y hora de ultima actualizacion |
+| Rosa de Vientos | Direccion del viento con brujula visual |
+| Temperatura | Valor actual con max/min del dia |
+| Humedad | Porcentaje de humedad relativa |
+| Sensacion termica | Temperatura percibida (feels like) |
+| Luna | Fase lunar con icono grafico |
+| Sol | Horas de amanecer y anochecer |
+| Icono clima | Representacion visual del clima actual |
+| Pronostico | 7 columnas con clima de las proximas horas |
+| Tendencias | 4 mini-graficas: temp, presion, humedad, lluvia/nieve (predicciones) |
 
 ### 7.3 Pantalla 1: Condiciones Actuales
 
@@ -547,16 +640,16 @@ Pantalla Principal (SCREEN_MAIN)
 |           CONDICIONES ACTUALES                |
 +-----------------------------------------------+
 |                                               |
-|   [Temp]        [Presion]       [Humedad]     |
-|   25.5 C        1013 hPa        65%           |
+|   [Temp]  [^]    [Presion] [>]   [Humedad][v] |
+|   25.5 C         1013 hPa        65%          |
 |   Max 28/Min 22                               |
 |                                               |
 +-----------------------------------------------+
 |                                               |
 |  [ICONO GRANDE]    Visibilidad: 10.5 km       |
-|                    Dir. Viento: NNE 5.2 m/s   |
+|                    Viento: NNE - 5.2 m/s      |
 |  "Parcialmente     Nubosidad: 45%             |
-|   nublado"                                    |
+|   nublado"         Sens. Termica: 24.5 C      |
 |                                               |
 +-----------------------------------------------+
 |   [Amanecer]      [Anochecer]    [Prob.Lluvia]|
@@ -564,20 +657,37 @@ Pantalla Principal (SCREEN_MAIN)
 +-----------------------------------------------+
 ```
 
+**Acceso**: Tocar la zona superior de la pantalla principal (area de temperatura/clima).
+
+#### Flechas de Tendencia
+
+Cada valor principal (temperatura, presion, humedad) incluye una flecha indicando la tendencia esperada:
+
+| Flecha | Significado |
+|--------|-------------|
+| ↑ (arriba) | El valor subira en las proximas horas |
+| → (derecha) | El valor se mantendra estable |
+| ↓ (abajo) | El valor bajara en las proximas horas |
+
+- **Temperatura**: Compara el valor actual con el pronostico del siguiente periodo
+- **Presion**: Basada en la diferencia entre el pronostico actual y 6 horas despues
+- **Humedad**: Compara el valor actual con el pronostico del siguiente periodo
+
 ### 7.4 Pantalla 2: Pronostico Extendido
 
 ```
 +-----------------------------------------------+
 |  [Fecha]  @ [Hora]                            |
 +-----------------------------------------------+
-|              PRONOSTICO                       |
+|            PRONOSTICO 5 DIAS                  |
 +-----------------------------------------------+
 |              Proximas 24 Horas                |
-| [12:00] [15:00] [18:00] [21:00] [00:00] ...   |
-|  [ico]   [ico]   [ico]   [ico]   [ico]        |
-|  28/24   27/23   25/22   24/21   23/20        |
+| [09:00][12:00][15:00][18:00][21:00][00:00]... |
+|  [ico]  [ico]  [ico]  [ico]  [ico]  [ico]     |
+|  25/22  28/24  27/23  25/22  24/21  23/20     |
+|         (8 columnas de 3 horas)               |
 +-----------------------------------------------+
-|              Pronostico 5 Dias                |
+|            Perspectiva 5 Dias                 |
 |  [Lun]    [Mar]    [Mie]    [Jue]    [Vie]    |
 |  [ico]    [ico]    [ico]    [ico]    [ico]    |
 |  30/22    28/21    27/20    29/22    31/23    |
@@ -585,65 +695,173 @@ Pantalla Principal (SCREEN_MAIN)
 +-----------------------------------------------+
 ```
 
-### 7.5 Pantalla 3: Graficas de Pronostico
+**Acceso**: Tocar la zona media de la pantalla principal (area del pronostico por horas).
+
+### 7.5 Pantalla 3: Tendencia del Clima
 
 ```
 +-----------------------------------------------+
 |  [Fecha]  @ [Hora]                            |
 +-----------------------------------------------+
-|           PRONOSTICO DEL CLIMA                |
+|          TENDENCIAS DEL CLIMA                 |
 +-----------------------------------------------+
 |                                               |
 |  [Grafica Temperatura]   [Grafica Presion]    |
 |  ~~~~~~~~~~~~~~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~ |
 |  |    ____/\____        ||    ___/\___       ||
 |  |___/          \____   ||___/        \___   ||
-|  |0d    1d    2d   3d   ||0d    1d   2d  3d  ||
 |                                               |
 |  [Grafica Humedad]       [Grafica Lluvia]     |
 |  ~~~~~~~~~~~~~~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~ |
 |  |   /\    /\           || ||  |  ||         ||
 |  |__/  \__/  \____      || ||  |  ||  |      ||
-|  |0d    1d    2d   3d   ||0d    1d   2d  3d  ||
 |                                               |
++-----------------------------------------------+
+|            Proximos 5 dias                    |
 +-----------------------------------------------+
 ```
 
+**Acceso**: Tocar la mitad DERECHA de las graficas en la pantalla principal.
+
+**Nota**: Estas graficas muestran TENDENCIAS (predicciones futuras) obtenidas de la API de OpenWeatherMap, no datos historicos reales.
+
 ### 7.6 Pantalla 4: Informacion del Sistema
 
-**Acceso**: Tocar la esquina superior derecha donde se muestra la bateria y senal WiFi.
+**Acceso**: Tocar la esquina superior derecha (bateria/WiFi) o el icono de la Luna.
 
 ```
 +-----------------------------------------------+
 |  [Fecha]  @ [Hora]                            |
 +-----------------------------------------------+
-|           INFORMACION DEL SISTEMA             |
+|          INFORMACION DEL SISTEMA              |
 +-----------------------------------------------+
-|                                               |
-|   Firmware:        v2.0                       |
-|   Compilado:       Mar 13 2026                |
-|                                               |
-|   WiFi SSID:       MiRedWiFi                  |
-|   WiFi IP:         192.168.1.100              |
-|   Senal:           -65 dBm                    |
-|                                               |
-|   Bateria:         85% (4.1v)                 |
-|                                               |
-|   Ubicacion:       Ciudad, Pais               |
-|   Coordenadas:     19.4326, -99.1332          |
-|   Zona horaria:    UTC-6                      |
-|                                               |
-|   Proxima actualizacion: 30 min               |
-|                                               |
+| Version: v2.0      | Idioma: Espanol          |
+| Compilado: Mar 2026| Unidades: Metrico        |
+| Free Heap: 245 KB  | Hemisferio: Norte        |
+| Total Heap: 320 KB | Pronostico: 5 dias       |
+| PSRAM: 4096 KB     |                          |
+|                    | Intervalo: 30 min        |
+| WiFi: MiRedWiFi    | Timeout: 30 seg          |
+| IP: 192.168.1.100  | Al dormir: Pant. princ.  |
+| Senal: -65 dBm     |                          |
+|                    | API Key: a1b2c3d4...     |
+| Ciudad: CDMX       | Web Config:              |
+| Coords: 19.4, -99.1|  http://192.168.1.100    |
+| Zona: CST6         |                          |
++-----------------------------------------------+
+|          [LIMPIAR PANTALLA]                   |
++-----------------------------------------------+
+|            Uptime: 5m 32s                     |
 +-----------------------------------------------+
 ```
 
-Esta pantalla muestra informacion tecnica del dispositivo util para diagnostico y verificacion de configuracion.
+#### Informacion mostrada
 
-### 7.7 Timeout y Sleep
+| Columna Izquierda | Columna Derecha |
+|-------------------|-----------------|
+| Version firmware | Idioma configurado |
+| Fecha compilacion | Sistema de unidades |
+| Memoria libre (Heap) | Hemisferio |
+| Memoria total | Dias de pronostico |
+| PSRAM disponible | Intervalo actualizacion |
+| Red WiFi conectada | Timeout antes de sleep |
+| Direccion IP | Comportamiento al dormir |
+| Intensidad senal | API Key (parcial) |
+| Ciudad configurada | URL configuracion web |
+| Coordenadas | |
+| Zona horaria | |
 
-- **30 segundos** sin tocar -> Regresa a pantalla principal y entra en deep sleep
-- **5 minutos** maximo de navegacion continua como proteccion
+#### Boton Limpiar Pantalla
+
+Tocar el boton **[LIMPIAR PANTALLA]** ejecuta un ciclo de limpieza del display e-paper para eliminar el ghosting (imagenes residuales). Util cuando se notan sombras de pantallas anteriores.
+
+### 7.7 Pantalla 5: Historial de Datos
+
+**Acceso**: Tocar la mitad IZQUIERDA de las graficas en la pantalla principal.
+
+```
++-----------------------------------------------+
+|  [Fecha]  @ [Hora]              [48H/1SEM]<-  |
++-----------------------------------------------+
+|                HISTORIAL                      |
++-----------------------------------------------+
+|                                               |
+|  [Grafica Temperatura]   [Grafica Presion]    |
+|  ~~~~~~~~~~~~~~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~ |
+|  |    ____/\____        ||    ___/\___       ||
+|  |___/          \____   ||___/        \___   ||
+|                                               |
+|  [Grafica Humedad]       [Grafica Lluvia]     |
+|  ~~~~~~~~~~~~~~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~ |
+|  |   /\    /\           || ||  |  ||         ||
+|  |__/  \__/  \____      || ||  |  ||  |      ||
+|                                               |
++-----------------------------------------------+
+|     150 lecturas / 2.5 dias [SD: 52560]       |
++-----------------------------------------------+
+```
+
+El footer muestra el conteo de lecturas en buffer y, si hay SD insertada, el total de lecturas almacenadas en la tarjeta SD entre corchetes.
+
+#### Diferencia con Pantalla de Tendencias
+
+| Pantalla Tendencias (3) | Pantalla Historial (5) |
+|-------------------------|------------------------|
+| Datos de TENDENCIAS (predicciones) | Datos HISTORICOS reales |
+| Obtenidos de la API | Grabados por el dispositivo |
+| Proximos 5 dias | Ultimas 48h o 1 semana |
+| Se actualizan con cada llamada API | Se acumulan con el tiempo |
+
+#### Boton Toggle 48H / 1 Semana
+
+El boton **[48H/1SEM]** en la esquina superior derecha alterna entre dos vistas:
+
+- **48H**: Muestra las ultimas 48 horas de datos (mayor detalle)
+- **1SEM**: Muestra la ultima semana completa (vision general)
+
+#### Almacenamiento de Datos
+
+El sistema utiliza almacenamiento dual con fallback automatico:
+
+**Sin tarjeta SD (modo basico)**:
+- Datos en FFat (flash interna) con buffer en PSRAM
+- Capacidad maxima: ~1000 lecturas (~7 dias a intervalos de 10 min)
+- Persisten entre reinicios y deep sleep
+
+**Con tarjeta SD (modo extendido)**:
+- Historial extendido en SD card (archivo CSV)
+- Capacidad: ~52,560 lecturas (~1 año a intervalos de 10 min)
+- Fallback automatico: si se retira la SD, continua con FFat
+- El archivo `/weather_history.csv` es legible en cualquier computadora
+- FFat siempre mantiene respaldo de las ultimas 1000 lecturas
+
+| Almacenamiento | Capacidad | Formato | Uso |
+|----------------|-----------|---------|-----|
+| FFat (interno) | ~1000 lecturas | Binario | Fallback/respaldo |
+| SD Card | ~52,560 lecturas | CSV | Historial extendido |
+
+**Requisitos de tarjeta SD**:
+- Formato: FAT32 (tarjetas hasta 32GB) o exFAT (64GB+)
+- Tamano recomendado: 1GB-32GB (no necesita mas)
+- El dispositivo detecta automaticamente la tarjeta al iniciar
+
+### 7.8 Timeout y Sleep
+
+| Condicion | Timeout | Comportamiento |
+|-----------|---------|----------------|
+| Sin tocar pantalla | 30 seg (configurable) | Entra en deep sleep |
+| Navegacion continua | 5 min maximo | Proteccion, fuerza sleep |
+| Configuracion web activa | 2 min sin solicitudes | Mantiene despierto mientras se configura |
+
+#### Comportamiento del Servidor Web
+
+- El servidor web se inicia automaticamente al conectar WiFi
+- **Solo si alguien accede** a la pagina de configuracion, se activa el timeout de 2 minutos
+- Si nadie accede a la web, el dispositivo duerme a los 30 segundos normales
+- Cada vez que se carga o guarda la configuracion, el timeout de 2 min se reinicia
+- Esto permite configurar tranquilamente sin que el dispositivo se duerma
+
+La pantalla mostrada al despertar depende de la configuracion "Al dormir" en Tab Sistema
 
 ---
 
@@ -772,8 +990,9 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 **Sintomas**: Imagenes anteriores visibles
 
 **Soluciones**:
-1. El proximo refresco completo lo limpiara
-2. Reiniciar el dispositivo para forzar limpieza
+1. Usar el boton [LIMPIAR PANTALLA] en la pantalla de Info Sistema
+2. El proximo refresco completo lo limpiara
+3. Reiniciar el dispositivo para forzar limpieza
 
 ### 10.4 Touch No Responde
 
@@ -812,13 +1031,15 @@ int  SleepHour     = 1;   // Dormir despues de la 1am
 
 | Nombre | Tamano | Uso |
 |--------|--------|-----|
-| OpenSans8B | 8pt | Texto pequeno, hints |
+| OpenSans6 | 6pt | Texto muy pequeno |
+| OpenSans8B | 8pt | Texto pequeno, hints, uptime |
 | OpenSans9B | 9pt | Etiquetas graficas |
-| OpenSans10B | 10pt | Fecha/hora, detalles |
-| OpenSans12B | 12pt | Textos medios |
+| OpenSans10B | 10pt | Fecha/hora, detalles, info sistema |
+| OpenSans12B | 12pt | Textos medios, botones |
 | OpenSans14B | 14pt | Ciudad, descripciones |
-| OpenSans18B | 18pt | Titulos secundarios |
+| OpenSans18B | 18pt | Titulos de pantallas |
 | OpenSans24B | 24pt | Temperatura, datos principales |
+| OpenSans28B | 28pt | Numeros extra grandes |
 
 ### 11.2 Coordenadas de Pantalla
 
@@ -863,13 +1084,18 @@ El sistema soporta 3 idiomas configurables:
 | Texto | Espanol | English | Francais |
 |-------|---------|---------|----------|
 | Condiciones | Condiciones Actuales | Current Conditions | Conditions Actuelles |
-| Pronostico | Pronostico | Forecast | Previsions |
-| Graficas | Pronostico del Clima | Weather Forecast | Previsions Meteo |
+| Pronostico | Pronostico 5 Dias | 5-Day Forecast | Previsions 5 Jours |
+| Tendencias | Tendencias del Clima | Weather Trends | Tendances Meteo |
+| Historial | Historial | History | Historique |
+| Info Sistema | Info del Sistema | System Info | Info Systeme |
 | Amanecer | Amanecer | Sunrise | Lever |
 | Anochecer | Anochecer | Sunset | Coucher |
 | Humedad | Humedad | Humidity | Humidite |
 | Presion | Presion | Pressure | Pression |
 | Viento | Viento | Wind | Vent |
+| Limpiar | Limpiar Pantalla | Clean Screen | Nettoyer Ecran |
+| 48 Horas | 48H | 48H | 48H |
+| 1 Semana | 1 Semana | 1 Week | 1 Semaine |
 
 ### 11.6 Licencia y Creditos
 
@@ -880,4 +1106,18 @@ Este proyecto es de codigo abierto. Consultar el repositorio para detalles de li
 
 ---
 
-*Manual Version 1.0 - Marzo 2026*
+*Manual Version 2.0 - Marzo 2026*
+
+### Cambios en Version 2.0
+- Soporte SD card con historial extendido (~1 año de datos)
+- Fallback automatico SD/FFat (funciona con o sin tarjeta SD)
+- Archivo CSV en SD legible desde cualquier computadora
+- Icono SD en barra de estado (visible cuando hay tarjeta insertada)
+- Contador SD en pantalla de historial
+- Nueva disposicion barra de estado: Bateria (con % y V debajo), SD, WiFi
+- Documentada nueva pantalla de Historial (datos reales grabados)
+- Actualizadas zonas tactiles de la pantalla principal
+- Agregado boton "Limpiar Pantalla" en Info Sistema
+- Agregada configuracion "Mantener pantalla al dormir"
+- Actualizada lista de fuentes disponibles
+- Corregidos textos multi-idioma
