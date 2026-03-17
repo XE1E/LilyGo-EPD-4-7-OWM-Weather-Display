@@ -618,7 +618,7 @@ void loadConfig() {
   config.sleep_timeout = preferences.getInt("sleept", 30);
   config.keep_screen_on_sleep = preferences.getBool("keepscr", false);
   config.wakeup_hour = preferences.getInt("wakeuph", 7);
-  config.sleep_hour = preferences.getInt("sleeph", 23);
+  config.sleep_hour = preferences.getInt("sleeph", 1);
   forceAPMode = preferences.getBool("forceAP", false);
 
   preferences.end();

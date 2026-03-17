@@ -17,7 +17,8 @@ enum ScreenState {
   SCREEN_GRAPHS,
   SCREEN_INFO,
   SCREEN_HISTORY,
-  SCREEN_AIR_QUALITY
+  SCREEN_AIR_QUALITY,
+  SCREEN_CALENDAR
 };
 
 // Touch zone structure
@@ -32,29 +33,30 @@ unsigned long lastTouchTime = 0;
 unsigned long navigationStartTime = 0;
 bool navigationModeActive = false;
 bool historyShowWeek = false;  // false = 48h, true = 1 week
+int calendarMonthOffset = 0;   // 0 = current month, -1 = previous, +1 = next
 
 const unsigned long SCREEN_TIMEOUT_MS = 30000;      // 30 seconds
 const unsigned long MAX_NAVIGATION_TIME_MS = 300000; // 5 minutes max
+const unsigned long CALENDAR_HOLD_MS = 800;         // Hold time to activate calendar (hidden feature)
 
 // Main screen touch zones
-// Touch X and Y are both inverted: X=0 is physical right, Y=540 is physical top
+// Based on actual measurements: top-right corner = X~914, Y~281
 // Zones are evaluated in order - first match wins
 const TouchZone mainScreenZones[] = {
-  // Battery/WiFi area top-right - System info (inverted: X 0-360, Y 480-540)
-  {0, 480, 360, 540, SCREEN_INFO},
-  // Moon icon area - System info (X 860-960, Y 170-310) - expanded zone
-  {860, 170, 960, 310, SCREEN_INFO},
-  // Physical top 40% - current conditions (excluding battery and moon areas)
-  {360, 180, 860, 540, SCREEN_CURRENT_DETAIL},
-  {0, 180, 360, 480, SCREEN_CURRENT_DETAIL},
-  {860, 310, 960, 540, SCREEN_CURRENT_DETAIL},
-  // Physical middle 30% - 5-day forecast (Y 90-180)
-  {0, 90, 960, 180, SCREEN_FORECAST},
-  // Physical bottom 30% - graphs area split in two:
-  // Right half (physical) = X 0-480 (inverted) -> Forecast graphs
-  {0, 0, 480, 90, SCREEN_GRAPHS},
-  // Left half (physical) = X 480-960 (inverted) -> Real history
-  {480, 0, 960, 90, SCREEN_HISTORY}
+  // Battery/WiFi area top-right - System info (X 800-960, Y 230-330)
+  {800, 230, 960, 330, SCREEN_INFO},
+  // Date/Time area - Calendar (hidden, small zone X 500-650, Y 270-310) - requires long press
+  {500, 270, 650, 310, SCREEN_CALENDAR},
+  // Top section - current conditions (expanded to cover weather icon/wind rose)
+  {0, 150, 800, 400, SCREEN_CURRENT_DETAIL},
+  {800, 330, 960, 400, SCREEN_CURRENT_DETAIL},
+  // Middle section - 5-day forecast (reduced: Y 70-150)
+  {0, 70, 960, 150, SCREEN_FORECAST},
+  // Bottom section - graphs area split in two:
+  // Left half -> History
+  {480, 0, 960, 70, SCREEN_HISTORY},
+  // Right half -> Forecast graphs
+  {0, 0, 480, 70, SCREEN_GRAPHS}
 };
 const int NUM_MAIN_ZONES = sizeof(mainScreenZones) / sizeof(mainScreenZones[0]);
 
@@ -224,6 +226,8 @@ bool readTouchPoint(TouchPoint &point) {
 // Special return values for actions
 #define SCREEN_CLEAN_ACTION 99
 #define SCREEN_HISTORY_TOGGLE 98
+#define SCREEN_CALENDAR_PREV 97
+#define SCREEN_CALENDAR_NEXT 96
 
 // Check which zone was touched
 ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
@@ -267,6 +271,23 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
   if (currentState == SCREEN_AIR_QUALITY) {
     Serial.println(">>> Touch on AIR_QUALITY screen - returning to Current Detail");
     return SCREEN_CURRENT_DETAIL;
+  }
+
+  // Special handling for CALENDAR screen - arrows for prev/next month
+  if (currentState == SCREEN_CALENDAR) {
+    // Left arrow zone (X 50-150, Y 200-320) - previous month
+    if (touchX >= 50 && touchX <= 200 && touchY >= 200 && touchY <= 350) {
+      Serial.println(">>> Calendar prev month touched");
+      return (ScreenState)SCREEN_CALENDAR_PREV;
+    }
+    // Right arrow zone (X 760-910, Y 200-320) - next month
+    if (touchX >= 760 && touchX <= 910 && touchY >= 200 && touchY <= 350) {
+      Serial.println(">>> Calendar next month touched");
+      return (ScreenState)SCREEN_CALENDAR_NEXT;
+    }
+    Serial.println(">>> Touch on CALENDAR screen - returning to main");
+    calendarMonthOffset = 0;  // Reset offset when leaving
+    return SCREEN_MAIN;
   }
 
   // Any touch on other secondary screens returns to main

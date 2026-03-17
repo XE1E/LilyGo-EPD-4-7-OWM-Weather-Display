@@ -137,6 +137,7 @@ int apRetryCount = 0;
 // Forward declarations for screen functions
 void DisplayCurrentDetailScreen();
 void DisplayAirQualityScreen();
+void DisplayCalendarScreen();
 void DisplayForecastScreen();
 void DisplayGraphsScreen();
 void DisplayInfoScreen();
@@ -385,6 +386,9 @@ void refreshScreenFast() {
     case SCREEN_AIR_QUALITY:
       DisplayAirQualityScreen();
       break;
+    case SCREEN_CALENDAR:
+      DisplayCalendarScreen();
+      break;
   }
 
   edp_update();
@@ -418,6 +422,9 @@ void refreshScreen() {
       break;
     case SCREEN_AIR_QUALITY:
       DisplayAirQualityScreen();
+      break;
+    case SCREEN_CALENDAR:
+      DisplayCalendarScreen();
       break;
   }
 
@@ -456,6 +463,10 @@ void deepCleanDisplay() {
   refreshScreenFast();
 }
 
+// Calendar long-press tracking (hidden feature)
+unsigned long calendarTouchStart = 0;
+bool calendarTouchPending = false;
+
 // Handle touch input and screen navigation
 void handleTouchNavigation() {
   if (pollTouch()) {
@@ -467,6 +478,7 @@ void handleTouchNavigation() {
     // Check for special deep clean action
     if (newScreen == SCREEN_CLEAN_ACTION) {
       deepCleanDisplay();
+      calendarTouchPending = false;
       return;
     }
 
@@ -475,7 +487,41 @@ void handleTouchNavigation() {
       historyShowWeek = !historyShowWeek;
       Serial.printf("History view toggled: %s\n", historyShowWeek ? "1 week" : "48 hours");
       refreshScreen();  // Full refresh to clear previous content
+      calendarTouchPending = false;
       return;
+    }
+
+    // Check for calendar navigation actions
+    if (newScreen == SCREEN_CALENDAR_PREV) {
+      calendarMonthOffset--;
+      Serial.printf("Calendar: previous month (offset: %d)\n", calendarMonthOffset);
+      refreshScreenFast();
+      return;
+    }
+    if (newScreen == SCREEN_CALENDAR_NEXT) {
+      calendarMonthOffset++;
+      Serial.printf("Calendar: next month (offset: %d)\n", calendarMonthOffset);
+      refreshScreenFast();
+      return;
+    }
+
+    // Calendar requires long press (hidden feature)
+    if (newScreen == SCREEN_CALENDAR && currentScreen == SCREEN_MAIN) {
+      if (!calendarTouchPending) {
+        calendarTouchPending = true;
+        calendarTouchStart = millis();
+        Serial.println("Calendar touch started - hold to activate...");
+        return;  // Don't navigate yet
+      } else if (millis() - calendarTouchStart >= CALENDAR_HOLD_MS) {
+        Serial.println("Calendar activated after long press!");
+        calendarTouchPending = false;
+        calendarMonthOffset = 0;  // Reset to current month
+        // Continue to normal navigation below
+      } else {
+        return;  // Still waiting for hold time
+      }
+    } else {
+      calendarTouchPending = false;  // Reset if touch moves elsewhere
     }
 
     if (newScreen != currentScreen) {
@@ -1029,7 +1075,9 @@ void DisplayGeneralInfoSection() {
   drawString(20, 13, City, LEFT);
   drawString(20, 13, City, LEFT);
   drawString(20, 13, City, LEFT);
-  drawScreenHeader();
+  // Date/time moved 40px right on main screen for more city space
+  setFont(OpenSans10B);
+  drawString(340, 15, Date_str + "  @ " + Time_str, LEFT);
 }
 
 void DisplayWeatherIcon(int x, int y) {
@@ -1100,10 +1148,21 @@ String WindDegToOrdinalDirection(float winddirection) {
 }
 
 void DisplayTemperatureSection(int x, int y) {
+  // Temperature and Humidity (large)
   setFont(OpenSans24B);
-  drawString(x + 20, y, String(WxConditions[0].Temperature, 1) + "°    " + String(WxConditions[0].Humidity, 0) + "%", LEFT);
+  String tempStr = String(WxConditions[0].Temperature, 1) + "°";
+  String humStr = String(WxConditions[0].Humidity, 0) + "%";
+  drawString(x + 20, y, tempStr + "    " + humStr, LEFT);
+
+  // Min/Max centered below temperature, UV below humidity (same row)
   setFont(OpenSans12B);
-  drawString(x + 150, y + 40, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER); // High and Low
+  int tempCenterX = x + 75;   // Center below temperature (+20px right total)
+  int humCenterX = x + 220;   // Center below humidity
+  drawString(tempCenterX, y + 40, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER);
+
+  // UV Index below humidity (+10px right, +5px down)
+  String uvText = TXT_UV_INDEX + " " + String(WxConditions[0].UVIndex, 0);
+  drawString(humCenterX + 23, y + 45, uvText, CENTER);
 }
 
 void DisplayForecastTextSection(int x, int y) {
@@ -1142,6 +1201,19 @@ void DisplayFeelsLike(int x, int y) {
   setFont(OpenSans10B);
   String feelsText = TXT_FEELS_LIKE + ": " + String(WxConditions[0].Feelslike, 1) + "°";
   drawString(x, y, feelsText, LEFT);
+
+  // AQI to the right of feels like (10px spacing)
+  String aqiDesc;
+  switch(WxConditions[0].AQI) {
+    case 1: aqiDesc = TXT_AQI_GOOD; break;
+    case 2: aqiDesc = TXT_AQI_FAIR; break;
+    case 3: aqiDesc = TXT_AQI_MODERATE; break;
+    case 4: aqiDesc = TXT_AQI_POOR; break;
+    case 5: aqiDesc = TXT_AQI_VERY_POOR; break;
+    default: aqiDesc = "--";
+  }
+  String aqiText = TXT_AQI + ": " + String(WxConditions[0].AQI) + " - " + aqiDesc;
+  drawString(x + 275, y - 4, aqiText, LEFT);
 }
 
 // Find first forecast index within 1 hour of current time
@@ -1454,7 +1526,7 @@ void DrawBattery(int x, int y) {
     fillRect(x + 2, y - 12, 38 * percentage / 100.0, 11, Black);  // Fill level
     // Percentage and voltage below icon
     setFont(OpenSans8B);
-    drawString(x + 20, y + 5, String(percentage) + "% " + String(voltage, 1) + "v", CENTER);
+    drawString(x + 20, y + 10, String(percentage) + "% " + String(voltage, 1) + "v", CENTER);
   }
 }
 
@@ -2382,6 +2454,151 @@ void DisplayAirQualityScreen() {
   else if (uv < 11) uvLevel = " " + TXT_UV_VERY_HIGH;
   else uvLevel = " " + TXT_UV_EXTREME;
   drawString(centerX, uvY + 5, TXT_UV_INDEX + ": " + String(uv, 1) + uvLevel, CENTER);
+}
+
+// Screen: Monthly Calendar
+void DisplayCalendarScreen() {
+  // Get current time
+  time_t now = time(NULL);
+  struct tm *timeinfo = localtime(&now);
+  int todayDay = timeinfo->tm_mday;
+  int todayMonth = timeinfo->tm_mon;
+  int todayYear = timeinfo->tm_year + 1900;
+
+  // Apply month offset for navigation
+  int displayMonth = todayMonth + calendarMonthOffset;
+  int displayYear = todayYear;
+  while (displayMonth < 0) { displayMonth += 12; displayYear--; }
+  while (displayMonth > 11) { displayMonth -= 12; displayYear++; }
+
+  // Month names (multi-language would go here)
+  String monthNames[] = {"Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"};
+
+  // === HEADER ===
+  String title = monthNames[displayMonth] + " " + String(displayYear);
+
+  // Draw decorative header line
+  drawFastHLine(100, 65, SCREEN_WIDTH - 200, Black);
+  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
+
+  // Month/year title - large and centered
+  setFont(OpenSans24B);
+  drawString(SCREEN_WIDTH / 2, 25, title, CENTER);
+
+  // === NAVIGATION ARROWS ===
+  int arrowY = 42;
+  int arrowSize = 30;
+
+  // Left arrow (previous month) - double triangle pointing left
+  int leftArrowX = 120;
+  fillTriangle(leftArrowX, arrowY,
+               leftArrowX + arrowSize, arrowY - arrowSize/2,
+               leftArrowX + arrowSize, arrowY + arrowSize/2, Black);
+  fillTriangle(leftArrowX + 25, arrowY,
+               leftArrowX + arrowSize + 25, arrowY - arrowSize/2,
+               leftArrowX + arrowSize + 25, arrowY + arrowSize/2, Black);
+
+  // Right arrow (next month) - double triangle pointing right
+  int rightArrowX = SCREEN_WIDTH - 120;
+  fillTriangle(rightArrowX, arrowY,
+               rightArrowX - arrowSize, arrowY - arrowSize/2,
+               rightArrowX - arrowSize, arrowY + arrowSize/2, Black);
+  fillTriangle(rightArrowX - 25, arrowY,
+               rightArrowX - arrowSize - 25, arrowY - arrowSize/2,
+               rightArrowX - arrowSize - 25, arrowY + arrowSize/2, Black);
+
+  // === DAY HEADERS (Week starts Monday) ===
+  setFont(OpenSans12B);
+  String dayHeaders[] = {"LUN", "MAR", "MIE", "JUE", "VIE", "SAB", "DOM"};
+  int cellWidth = 125;
+  int cellHeight = 65;
+  int gridWidth = 7 * cellWidth;
+  int startX = (SCREEN_WIDTH - gridWidth) / 2;
+  int startY = 85;
+
+  // Header background
+  fillRect(startX, startY, gridWidth, 30, DarkGrey);
+
+  for (int i = 0; i < 7; i++) {
+    int x = startX + i * cellWidth + cellWidth / 2;
+    drawString(x, startY + 5, dayHeaders[i], CENTER);
+  }
+
+  // === GRID LINES ===
+  // Horizontal lines
+  for (int i = 0; i <= 6; i++) {
+    int y = startY + 30 + i * cellHeight;
+    drawFastHLine(startX, y, gridWidth, Grey);
+  }
+  // Vertical lines
+  for (int i = 0; i <= 7; i++) {
+    int x = startX + i * cellWidth;
+    for (int y = startY; y < startY + 30 + 6 * cellHeight; y++) {
+      if ((y - startY) % 3 == 0) // Dashed effect
+        epd_draw_pixel(x, y, Grey, framebuffer);
+    }
+  }
+
+  // === CALCULATE CALENDAR ===
+  struct tm firstDay = {0};
+  firstDay.tm_year = displayYear - 1900;
+  firstDay.tm_mon = displayMonth;
+  firstDay.tm_mday = 1;
+  firstDay.tm_hour = 12;
+  mktime(&firstDay);
+  // Convert from Sunday=0 to Monday=0 system
+  int firstDayOfWeek = (firstDay.tm_wday + 6) % 7;
+
+  int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (displayMonth == 1 && ((displayYear % 4 == 0 && displayYear % 100 != 0) || displayYear % 400 == 0)) {
+    daysInMonth[1] = 29;
+  }
+  int numDays = daysInMonth[displayMonth];
+
+  // === DRAW DAYS ===
+  int day = 1;
+  bool isCurrentMonth = (displayMonth == todayMonth && displayYear == todayYear);
+
+  for (int week = 0; week < 6 && day <= numDays; week++) {
+    int y = startY + 30 + week * cellHeight + cellHeight / 2;
+
+    for (int dow = 0; dow < 7; dow++) {
+      if (week == 0 && dow < firstDayOfWeek) continue;
+      if (day > numDays) break;
+
+      int x = startX + dow * cellWidth + cellWidth / 2;
+      int cellY = startY + 30 + week * cellHeight;
+
+      // Highlight today with inverted colors (white on black)
+      if (isCurrentMonth && day == todayDay) {
+        int boxSize = 48;
+        fillRect(x - boxSize/2, cellY + 4, boxSize, boxSize, Black);
+        setFont(OpenSans24B);
+        // Draw day number - will appear lighter on dark background
+        drawString(x, cellY + 8, String(day), CENTER);
+      } else {
+        // Sunday (now position 6) in darker grey
+        setFont(OpenSans18B);
+        if (dow == 6) { // Sunday
+          drawString(x, cellY + 14, String(day), CENTER);
+        } else if (dow == 5) { // Saturday
+          drawString(x, cellY + 14, String(day), CENTER);
+        } else {
+          drawString(x, cellY + 14, String(day), CENTER);
+        }
+      }
+      day++;
+    }
+  }
+
+  // === FOOTER ===
+  setFont(OpenSans10B);
+  if (calendarMonthOffset != 0) {
+    drawString(SCREEN_WIDTH / 2, 505, "< Mes anterior | Tocar centro para volver | Mes siguiente >", CENTER);
+  } else {
+    drawString(SCREEN_WIDTH / 2, 505, "< > Cambiar mes | Tocar centro para volver", CENTER);
+  }
 }
 
 // Screen 3: Extended forecast

@@ -624,8 +624,6 @@ Pantalla Principal (SCREEN_MAIN)
 
 **Regresar**: Tocar cualquier parte de una pantalla secundaria regresa a la principal.
 
-**Nota**: El area del icono de la Luna tambien lleva a la pantalla de Info Sistema.
-
 ### 7.2 Pantalla Principal (Main)
 
 ```
@@ -769,7 +767,7 @@ Cada valor principal (temperatura, presion, humedad) incluye una flecha indicand
 
 ### 7.6 Pantalla 4: Informacion del Sistema
 
-**Acceso**: Tocar la esquina superior derecha (bateria/WiFi) o el icono de la Luna.
+**Acceso**: Tocar la esquina superior derecha (zona bateria/WiFi).
 
 ```
 +-----------------------------------------------+
