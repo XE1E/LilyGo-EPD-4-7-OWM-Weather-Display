@@ -646,18 +646,21 @@ Pantalla Principal (SCREEN_MAIN)
 |                                               |
 +-----------------------------------------------+
 |                                               |
-|  [ICONO GRANDE]    Visibilidad: 10.5 km       |
-|                    Viento: NNE - 5.2 m/s      |
-|  "Parcialmente     Nubosidad: 45%             |
-|   nublado"         Sens. Termica: 24.5 C      |
+|  [ICONO GRANDE]    Viento: NNE 5.2 m/s        |
+|                    Visibilidad: 10.5 km       |
+|  "Parcialmente     Indice UV: 5.2             |
+|   nublado"         Nubosidad: 45%             |
+|                    Sens. Termica: 24.5 C      |
 |                                               |
 +-----------------------------------------------+
-|   [Amanecer]      [Anochecer]    [Prob.Lluvia]|
-|     06:45           18:32           15%       |
+| [Amanecer] [Anochecer] [Prob.Lluvia] [ICA ->] |
+|   06:45       18:32        15%       Bueno    |
 +-----------------------------------------------+
 ```
 
 **Acceso**: Tocar la zona superior de la pantalla principal (area de temperatura/clima).
+
+**Nota**: Tocar la zona **ICA** (Indice de Calidad del Aire) abre la pantalla detallada de contaminantes.
 
 #### Flechas de Tendencia
 
@@ -845,7 +848,65 @@ El sistema utiliza almacenamiento dual con fallback automatico:
 - Tamano recomendado: 1GB-32GB (no necesita mas)
 - El dispositivo detecta automaticamente la tarjeta al iniciar
 
-### 7.8 Timeout y Sleep
+### 7.8 Pantalla 6: Calidad del Aire
+
+**Acceso**: Tocar la zona **ICA** en la pantalla de Condiciones Actuales.
+
+```
++-----------------------------------------------+
+|  [Fecha]  @ [Hora]                            |
++-----------------------------------------------+
+|            CALIDAD DEL AIRE                   |
++-----------------------------------------------+
+|                                               |
+|         ICA: 2 - Aceptable                    |
+|   1=Bueno 2=Aceptable 3=Moderado 4=Malo 5=Muy Malo |
+|                                               |
++-----------------------------------------------+
+|                                               |
+|   PM2.5: 12.5 ug/m3      CO: 234.5 ug/m3      |
+|   PM10:  25.3 ug/m3      NO2: 15.2 ug/m3      |
+|   O3:    45.6 ug/m3      SO2: 8.3 ug/m3       |
+|                                               |
++-----------------------------------------------+
+|           Indice UV: 5.2 Moderado             |
++-----------------------------------------------+
+|           Toca para volver                    |
++-----------------------------------------------+
+```
+
+#### Indice de Calidad del Aire (ICA)
+
+| Valor | Descripcion | Recomendacion |
+|-------|-------------|---------------|
+| 1 | Bueno | Sin restricciones |
+| 2 | Aceptable | Grupos sensibles pueden tener molestias |
+| 3 | Moderado | Limitar actividad al aire libre |
+| 4 | Malo | Evitar actividad al aire libre |
+| 5 | Muy Malo | Permanecer en interiores |
+
+#### Contaminantes Medidos
+
+| Contaminante | Descripcion |
+|--------------|-------------|
+| PM2.5 | Particulas finas (< 2.5 micrometros) |
+| PM10 | Particulas gruesas (< 10 micrometros) |
+| O3 | Ozono troposferico |
+| CO | Monoxido de carbono |
+| NO2 | Dioxido de nitrogeno |
+| SO2 | Dioxido de azufre |
+
+#### Indice UV
+
+| Rango | Nivel | Proteccion recomendada |
+|-------|-------|------------------------|
+| 0-2 | Bajo | No requiere proteccion |
+| 3-5 | Moderado | Usar protector solar |
+| 6-7 | Alto | Protector + sombrero |
+| 8-10 | Muy Alto | Evitar exposicion directa |
+| 11+ | Extremo | Permanecer en interiores |
+
+### 7.9 Timeout y Sleep
 
 | Condicion | Timeout | Comportamiento |
 |-----------|---------|----------------|
@@ -860,6 +921,19 @@ El sistema utiliza almacenamiento dual con fallback automatico:
 - Si nadie accede a la web, el dispositivo duerme a los 30 segundos normales
 - Cada vez que se carga o guarda la configuracion, el timeout de 2 min se reinicia
 - Esto permite configurar tranquilamente sin que el dispositivo se duerma
+
+#### Endpoints Web Disponibles
+
+| Endpoint | Descripcion |
+|----------|-------------|
+| `http://[IP]/` | Pagina principal de configuracion |
+| `http://[IP]/history` | Ver ultimas 50 lecturas del historial en HTML |
+| `http://[IP]/history.csv` | Descargar archivo CSV completo (requiere SD) |
+
+**Acceso al historial via web:**
+- `/history` muestra una tabla con las ultimas 50 lecturas del buffer
+- `/history.csv` descarga el archivo CSV directamente de la tarjeta SD
+- Si no hay SD insertada, `/history.csv` devuelve error 404
 
 La pantalla mostrada al despertar depende de la configuracion "Al dormir" en Tab Sistema
 
@@ -1109,9 +1183,13 @@ Este proyecto es de codigo abierto. Consultar el repositorio para detalles de li
 *Manual Version 2.0 - Marzo 2026*
 
 ### Cambios en Version 2.0
+- Indice UV en pantalla Condiciones Actuales
+- Calidad del Aire (ICA) con pantalla detallada de contaminantes
+- Nueva pantalla "Calidad del Aire" con PM2.5, PM10, CO, NO2, O3, SO2
 - Soporte SD card con historial extendido (~1 año de datos)
 - Fallback automatico SD/FFat (funciona con o sin tarjeta SD)
 - Archivo CSV en SD legible desde cualquier computadora
+- Acceso web al historial: `/history` y `/history.csv`
 - Icono SD en barra de estado (visible cuando hay tarjeta insertada)
 - Contador SD en pantalla de historial
 - Nueva disposicion barra de estado: Bateria (con % y V debajo), SD, WiFi

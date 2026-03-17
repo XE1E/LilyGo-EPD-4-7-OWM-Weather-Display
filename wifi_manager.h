@@ -5,6 +5,7 @@
 #include <WebServer.h>
 #include <Preferences.h>
 #include <DNSServer.h>
+#include <SD.h>
 
 // AP Mode Configuration
 const char* AP_SSID = "WeatherStation-Setup";
@@ -696,6 +697,94 @@ String processTemplate(const char* page) {
   return html;
 }
 
+// External references for history access
+extern bool sdCardAvailable;
+extern int historyCount;
+extern bool getWeatherReading(int index, struct WeatherReading &reading);
+extern int getTotalHistoryReadings();
+
+// History page handler - shows recent readings in HTML
+void handleHistory() {
+  lastWebRequestTime = millis();
+
+  String html = "<!DOCTYPE html><html><head>";
+  html += "<meta charset='UTF-8'><meta name='viewport' content='width=device-width,initial-scale=1'>";
+  html += "<title>Weather History</title>";
+  html += "<style>";
+  html += "body{font-family:system-ui;background:#0f172a;color:#f1f5f9;padding:20px;margin:0}";
+  html += "h1{color:#3b82f6}";
+  html += "table{width:100%;border-collapse:collapse;margin-top:20px}";
+  html += "th,td{padding:10px;text-align:left;border-bottom:1px solid #334155}";
+  html += "th{background:#1e293b;color:#3b82f6}";
+  html += "tr:hover{background:#1e293b}";
+  html += ".info{background:#1e293b;padding:15px;border-radius:8px;margin-bottom:20px}";
+  html += "a{color:#3b82f6;text-decoration:none}";
+  html += "a:hover{text-decoration:underline}";
+  html += ".btn{display:inline-block;background:#3b82f6;color:#fff;padding:10px 20px;border-radius:6px;margin:5px}";
+  html += "</style></head><body>";
+
+  html += "<h1>Weather History</h1>";
+  html += "<div class='info'>";
+  html += "<p>Readings in buffer: <strong>" + String(historyCount) + "</strong></p>";
+  if (sdCardAvailable) {
+    html += "<p>Total readings on SD: <strong>" + String(getTotalHistoryReadings()) + "</strong></p>";
+    html += "<p><a class='btn' href='/history.csv'>Download CSV</a></p>";
+  } else {
+    html += "<p>SD Card: <strong>Not available</strong></p>";
+  }
+  html += "</div>";
+
+  // Show last 50 readings
+  html += "<h2>Last 50 Readings</h2>";
+  html += "<table><tr><th>Time</th><th>Temp</th><th>Humidity</th><th>Pressure</th><th>Rain</th><th>Feels Like</th></tr>";
+
+  int start = max(0, historyCount - 50);
+  for (int i = historyCount - 1; i >= start; i--) {
+    WeatherReading reading;
+    if (getWeatherReading(i, reading)) {
+      char timeStr[20];
+      time_t ts = reading.timestamp;
+      struct tm* tm_info = localtime(&ts);
+      strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M", tm_info);
+
+      html += "<tr>";
+      html += "<td>" + String(timeStr) + "</td>";
+      html += "<td>" + String(reading.temperature / 10.0, 1) + " C</td>";
+      html += "<td>" + String(reading.humidity) + "%</td>";
+      html += "<td>" + String(reading.pressure) + " hPa</td>";
+      html += "<td>" + String(reading.rainfall / 100.0, 2) + " mm</td>";
+      html += "<td>" + String(reading.feelslike / 10.0, 1) + " C</td>";
+      html += "</tr>";
+    }
+  }
+  html += "</table>";
+
+  html += "<p style='margin-top:20px'><a href='/'>Back to Config</a></p>";
+  html += "</body></html>";
+
+  webServer.send(200, "text/html", html);
+}
+
+// History CSV download handler
+void handleHistoryCSV() {
+  lastWebRequestTime = millis();
+
+  if (!sdCardAvailable) {
+    webServer.send(404, "text/plain", "SD Card not available");
+    return;
+  }
+
+  File file = SD.open("/weather_history.csv", FILE_READ);
+  if (!file) {
+    webServer.send(404, "text/plain", "History file not found");
+    return;
+  }
+
+  webServer.sendHeader("Content-Disposition", "attachment; filename=weather_history.csv");
+  webServer.streamFile(file, "text/csv");
+  file.close();
+}
+
 // Web server handlers
 void handleRoot() {
   lastWebRequestTime = millis();  // Track web activity
@@ -823,6 +912,8 @@ void startAPMode() {
   webServer.on("/save", HTTP_POST, handleSave);
   webServer.on("/reboot", HTTP_POST, handleReboot);
   webServer.on("/reset", HTTP_POST, handleReset);
+  webServer.on("/history", HTTP_GET, handleHistory);
+  webServer.on("/history.csv", HTTP_GET, handleHistoryCSV);
   webServer.onNotFound(handleNotFound);
 
   webServer.begin();
@@ -868,6 +959,8 @@ void startWebServer() {
   webServer.on("/save", HTTP_POST, handleSave);
   webServer.on("/reboot", HTTP_POST, handleReboot);
   webServer.on("/reset", HTTP_POST, handleReset);
+  webServer.on("/history", HTTP_GET, handleHistory);
+  webServer.on("/history.csv", HTTP_GET, handleHistoryCSV);
 
   webServer.begin();
   webServerRunning = true;

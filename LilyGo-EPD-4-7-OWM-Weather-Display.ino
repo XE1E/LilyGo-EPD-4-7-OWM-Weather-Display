@@ -52,9 +52,9 @@
 bool sdCardAvailable = false;
 
 #include "owm_credentials.h"
-#include "wifi_manager.h"       // AP mode and captive portal
 #include "forecast_record.h"
-#include "weather_history.h"    // SPIFFS weather history storage
+#include "weather_history.h"    // Weather history storage (SD + FFat)
+#include "wifi_manager.h"       // AP mode and captive portal (needs weather_history.h)
 #include "lang.h"
 #include "sunset.h"
 #include "sunrise.h"
@@ -136,6 +136,7 @@ int apRetryCount = 0;
 
 // Forward declarations for screen functions
 void DisplayCurrentDetailScreen();
+void DisplayAirQualityScreen();
 void DisplayForecastScreen();
 void DisplayGraphsScreen();
 void DisplayInfoScreen();
@@ -381,6 +382,9 @@ void refreshScreenFast() {
     case SCREEN_HISTORY:
       DisplayHistoryScreen();
       break;
+    case SCREEN_AIR_QUALITY:
+      DisplayAirQualityScreen();
+      break;
   }
 
   edp_update();
@@ -411,6 +415,9 @@ void refreshScreen() {
       break;
     case SCREEN_HISTORY:
       DisplayHistoryScreen();
+      break;
+    case SCREEN_AIR_QUALITY:
+      DisplayAirQualityScreen();
       break;
   }
 
@@ -531,6 +538,9 @@ void loop() {
           if (RxForecast == false) RxForecast = obtainWeatherData(client, "forecast");
           Attempts++;
         }
+        // Fetch UV Index and Air Quality
+        obtainUVIndex(client);
+        obtainAirQuality(client);
         if (RxWeather && RxForecast) {
           currentScreen = SCREEN_MAIN;
           epd_poweron();
@@ -719,6 +729,9 @@ void setup() {
         if (RxForecast == false) RxForecast = obtainWeatherData(client, "forecast");
         Attempts++;
       }
+      // Fetch UV Index and Air Quality (optional, don't fail if unavailable)
+      obtainUVIndex(client);
+      obtainAirQuality(client);
       Serial.println("Received all weather data...");
       if (RxWeather && RxForecast) { // Only if received both Weather or Forecast proceed
         // Save current weather to history
@@ -886,6 +899,76 @@ bool obtainWeatherData(WiFiClient & client, const String & RequestType) {
   }
   http.end();
   return true;
+}
+
+// Check if it's currently nighttime (between sunset and sunrise)
+bool isNightTime() {
+  time_t now = time(nullptr);
+  int sunrise = WxConditions[0].Sunrise;
+  int sunset = WxConditions[0].Sunset;
+
+  // If we don't have valid sunrise/sunset data, assume daytime
+  if (sunrise == 0 || sunset == 0) return false;
+
+  // Nighttime is after sunset OR before sunrise
+  return (now > sunset || now < sunrise);
+}
+
+// Fetch UV Index from OpenWeatherMap
+bool obtainUVIndex(WiFiClient & client) {
+  // If it's nighttime, UV index is 0
+  if (isNightTime()) {
+    WxConditions[0].UVIndex = 0;
+    Serial.println("UV Index: 0 (nighttime)");
+    return true;
+  }
+
+  client.stop();
+  HTTPClient http;
+  String uri = "/data/2.5/uvi?lat=" + Latitude + "&lon=" + Longitude + "&appid=" + apikey;
+  http.begin(client, server, 80, uri);
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    DynamicJsonDocument doc(1024);
+    DeserializationError error = deserializeJson(doc, http.getStream());
+    if (!error) {
+      WxConditions[0].UVIndex = doc["value"].as<float>();
+      Serial.printf("UV Index: %.1f\n", WxConditions[0].UVIndex);
+    }
+    http.end();
+    return !error;
+  }
+  http.end();
+  return false;
+}
+
+// Fetch Air Quality from OpenWeatherMap
+bool obtainAirQuality(WiFiClient & client) {
+  client.stop();
+  HTTPClient http;
+  String uri = "/data/2.5/air_pollution?lat=" + Latitude + "&lon=" + Longitude + "&appid=" + apikey;
+  http.begin(client, server, 80, uri);
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    DynamicJsonDocument doc(2048);
+    DeserializationError error = deserializeJson(doc, http.getStream());
+    if (!error) {
+      JsonObject list0 = doc["list"][0];
+      WxConditions[0].AQI = list0["main"]["aqi"].as<int>();
+      JsonObject components = list0["components"];
+      WxConditions[0].PM2_5 = components["pm2_5"].as<float>();
+      WxConditions[0].PM10 = components["pm10"].as<float>();
+      WxConditions[0].CO = components["co"].as<float>();
+      WxConditions[0].NO2 = components["no2"].as<float>();
+      WxConditions[0].O3 = components["o3"].as<float>();
+      WxConditions[0].SO2 = components["so2"].as<float>();
+      Serial.printf("AQI: %d, PM2.5: %.1f\n", WxConditions[0].AQI, WxConditions[0].PM2_5);
+    }
+    http.end();
+    return !error;
+  }
+  http.end();
+  return false;
 }
 
 float mm_to_inches(float value_mm) {
@@ -2114,7 +2197,7 @@ void DisplayCurrentDetailScreen() {
   // === MIDDLE SECTION: Weather Icon + Details ===
   drawFastHLine(50, 190, SCREEN_WIDTH - 100, Grey);
 
-  // Left: Weather icon (extra large) - moved 40px right
+  // Left: Weather icon (extra large)
   iconScaleOverride = XLarge;
   DisplayConditionsSection(220, 300, WxConditions[0].Icon, LargeIcon);
   iconScaleOverride = 0;
@@ -2123,39 +2206,180 @@ void DisplayCurrentDetailScreen() {
   setFont(OpenSans10B);
   drawString(220, 385, TitleCase(WxConditions[0].Forecast0), CENTER);
 
-  // Right: Visibility, Wind, Clouds, Feels Like
-  int rightColLabel = 645, rightColValue = 685;  // Values closer to labels
-  int row1Y = 225, row2Y = 270, row3Y = 315, row4Y = 360;
+  // Right: Wind, Visibility, UV Index, Cloudiness, Feels Like (5 rows)
+  int rightColLabel = 645, rightColValue = 685;
+  int row1Y = 210, row2Y = 248, row3Y = 286, row4Y = 324, row5Y = 362;  // row3Y (UV) +5px
 
   setFont(OpenSans12B);
-  drawString(rightColLabel, row1Y, TXT_VISIBILITY + ":", RIGHT);
-  drawString(rightColLabel, row2Y, TXT_WIND + ":", RIGHT);
-  drawString(rightColLabel, row3Y, TXT_CLOUDINESS + ":", RIGHT);
-  drawString(rightColLabel, row4Y, TXT_FEELS_LIKE + ":", RIGHT);
+  drawString(rightColLabel, row1Y, TXT_WIND + ":", RIGHT);
+  drawString(rightColLabel, row2Y, TXT_VISIBILITY + ":", RIGHT);
+  drawString(rightColLabel, row3Y, TXT_UV_INDEX + ":", RIGHT);
+  drawString(rightColLabel, row4Y, TXT_CLOUDINESS + ":", RIGHT);
+  drawString(rightColLabel, row5Y, TXT_FEELS_LIKE + ":", RIGHT);
 
-  setFont(OpenSans18B);
+  setFont(OpenSans14B);  // Reduced from 18B
   float visKm = WxConditions[0].Visibility / 1000.0;
   String windDir = WindDegToOrdinalDirection(WxConditions[0].Winddir);
-  drawString(rightColValue, row1Y - 5, String(visKm, 1) + " km", LEFT);
-  drawString(rightColValue, row2Y - 5, windDir + " - " + String(WxConditions[0].Windspeed, 1) + ((Units == "M") ? " m/s" : " mph"), LEFT);
-  drawString(rightColValue, row3Y - 5, String(WxConditions[0].Cloudcover) + "%", LEFT);
-  drawString(rightColValue, row4Y - 5, String(WxConditions[0].Feelslike, 1) + tempUnit, LEFT);
+  drawString(rightColValue, row1Y - 3, windDir + " " + String(WxConditions[0].Windspeed, 1) + ((Units == "M") ? " m/s" : " mph"), LEFT);
+  drawString(rightColValue, row2Y - 3, String(visKm, 1) + " km", LEFT);
 
-  // === BOTTOM SECTION: Sunrise, Sunset, Rain Probability ===
-  drawFastHLine(50, 420, SCREEN_WIDTH - 100, Grey);
+  // UV Index with level description
+  String uvLevel;
+  float uv = WxConditions[0].UVIndex;
+  if (uv < 3) uvLevel = " " + TXT_UV_LOW_S;
+  else if (uv < 6) uvLevel = " " + TXT_UV_MOD_S;
+  else if (uv < 8) uvLevel = " " + TXT_UV_HIGH_S;
+  else if (uv < 11) uvLevel = " " + TXT_UV_VHIGH_S;
+  else uvLevel = " " + TXT_UV_EXT_S;
+  drawString(rightColValue, row3Y - 6, String(uv, 1) + uvLevel, LEFT);
 
-  int bottomY = 445;  // Moved up 25px
-  int bot1X = 160, bot2X = 480, bot3X = 800;
+  drawString(rightColValue, row4Y - 3, String(WxConditions[0].Cloudcover) + "%", LEFT);
+  drawString(rightColValue, row5Y - 3, String(WxConditions[0].Feelslike, 1) + tempUnit, LEFT);
+
+  // === BOTTOM SECTION: Sunrise, Sunset, Rain Prob, AQI ===
+  // Individual positions for fine tuning
+  int lineY = 425;                    // Divider line
+  drawFastHLine(50, lineY, SCREEN_WIDTH - 100, Grey);
+
+  // X positions for each column
+  int sunriseX = 130;
+  int sunsetX = 350;
+  int rainX = 570;
+  int aqiX = 820;
+
+  // Y positions for values (adjust individually)
+  int sunriseValY = 450;
+  int sunsetValY = 450;
+  int rainValY = 450;
+  int aqiValY = 439;                  // AQI value raised 6px
+
+  // Y positions for labels
+  int labelOffsetY = 28;              // Distance between value and label
+  int aqiLabelOffsetY = 40;           // Specific offset for AQI text (+10px)
+
+  // Values
+  setFont(OpenSans16B);
+  drawString(sunriseX, sunriseValY, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), CENTER);
+  drawString(sunsetX, sunsetValY, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), CENTER);
+  drawString(rainX, rainValY, String(WxForecast[0].Pop * 100, 0) + "%", CENTER);
+
+  // AQI valor
+  String aqiText;
+  switch(WxConditions[0].AQI) {
+    case 1: aqiText = TXT_AQI_GOOD; break;
+    case 2: aqiText = TXT_AQI_FAIR; break;
+    case 3: aqiText = TXT_AQI_MODERATE; break;
+    case 4: aqiText = TXT_AQI_POOR; break;
+    case 5: aqiText = TXT_AQI_VERY_POOR; break;
+    default: aqiText = "--";
+  }
+  drawString(aqiX, aqiValY, aqiText, CENTER);
+
+  // Labels
+  setFont(OpenSans12B);
+  drawString(sunriseX, sunriseValY + labelOffsetY, TXT_SUNRISE, CENTER);
+  drawString(sunsetX, sunsetValY + labelOffsetY, TXT_SUNSET, CENTER);
+  drawString(rainX, rainValY + labelOffsetY, TXT_RAIN_PROB, CENTER);
+  drawString(aqiX, aqiValY + aqiLabelOffsetY, TXT_AQI + " ->", CENTER);
+}
+
+// Screen: Air Quality Details
+void DisplayAirQualityScreen() {
+  drawScreenHeader();
+
+  int centerX = SCREEN_WIDTH / 2;
+
+  // ===== ADJUSTABLE POSITIONS =====
+  // Title
+  int titleY = 50;
+  int titleLineY = 85;
+
+  // Main AQI
+  int aqiY = 125;                   // AQI text
+  int aqiScaleY = 185;              // AQI scale
+  int aqiLineY = 210;               // Line below AQI
+
+  // Pollutants - Column 1 (PM2.5, PM10, O3)
+  int col1LabelX = 180;           // X position labels col1
+  int col1ValueX = 190;           // X position values col1
+
+  // Pollutants - Column 2 (CO, NO2, SO2)
+  int col2LabelX = 580;           // X position labels col2
+  int col2ValueX = 590;           // X position values col2
+
+  // Y rows for pollutants
+  int pm25Y = 245;
+  int pm10Y = 295;
+  int o3Y = 345;
+  int coY = 245;
+  int no2Y = 295;
+  int so2Y = 345;
+
+  int labelAdjustY = 10;            // Label vs value Y adjustment
+
+  // UV Index
+  int uvLineY = 400;
+  int uvLabelX = 380;
+  int uvValueX = 390;
+  int uvY = 440;
+
+  // ===== DRAW SCREEN =====
+
+  // Title
+  setFont(OpenSans18B);
+  drawString(centerX, titleY, TXT_AIR_QUALITY, CENTER);
+  drawFastHLine(150, titleLineY, SCREEN_WIDTH - 300, Grey);
+
+  // Main AQI
+  setFont(OpenSans24B);
+  String aqiText, aqiDesc;
+  switch(WxConditions[0].AQI) {
+    case 1: aqiText = "1"; aqiDesc = TXT_AQI_GOOD; break;
+    case 2: aqiText = "2"; aqiDesc = TXT_AQI_FAIR; break;
+    case 3: aqiText = "3"; aqiDesc = TXT_AQI_MODERATE; break;
+    case 4: aqiText = "4"; aqiDesc = TXT_AQI_POOR; break;
+    case 5: aqiText = "5"; aqiDesc = TXT_AQI_VERY_POOR; break;
+    default: aqiText = "--"; aqiDesc = "--";
+  }
+  drawString(centerX, aqiY, TXT_AQI + ": " + aqiText + " - " + aqiDesc, CENTER);
+
+  // AQI Scale
+  setFont(OpenSans8B);
+  String aqiScale = "1=" + TXT_AQI_GOOD + ", 2=" + TXT_AQI_FAIR + ", 3=" + TXT_AQI_MODERATE + ", 4=" + TXT_AQI_POOR + ", 5=" + TXT_AQI_VERY_POOR;
+  drawString(centerX, aqiScaleY, aqiScale, CENTER);
+
+  drawFastHLine(100, aqiLineY, SCREEN_WIDTH - 200, Grey);
+
+  // Pollutant labels
+  setFont(OpenSans12B);
+  drawString(col1LabelX, pm25Y + labelAdjustY, "PM2.5:", RIGHT);
+  drawString(col1LabelX, pm10Y + labelAdjustY, "PM10:", RIGHT);
+  drawString(col1LabelX, o3Y + labelAdjustY, "O3 (" + TXT_OZONE + "):", RIGHT);
+  drawString(col2LabelX, coY + labelAdjustY, "CO:", RIGHT);
+  drawString(col2LabelX, no2Y + labelAdjustY, "NO2:", RIGHT);
+  drawString(col2LabelX, so2Y + labelAdjustY, "SO2:", RIGHT);
+
+  // Pollutant values
+  setFont(OpenSans18B);
+  drawString(col1ValueX, pm25Y, String(WxConditions[0].PM2_5, 1) + " ug/m3", LEFT);
+  drawString(col1ValueX, pm10Y, String(WxConditions[0].PM10, 1) + " ug/m3", LEFT);
+  drawString(col1ValueX, o3Y, String(WxConditions[0].O3, 1) + " ug/m3", LEFT);
+  drawString(col2ValueX, coY, String(WxConditions[0].CO, 1) + " ug/m3", LEFT);
+  drawString(col2ValueX, no2Y, String(WxConditions[0].NO2, 1) + " ug/m3", LEFT);
+  drawString(col2ValueX, so2Y, String(WxConditions[0].SO2, 1) + " ug/m3", LEFT);
+
+  // UV Index
+  drawFastHLine(100, uvLineY, SCREEN_WIDTH - 200, Grey);
 
   setFont(OpenSans18B);
-  drawString(bot1X, bottomY, ConvertUnixTime(WxConditions[0].Sunrise).substring(0, 5), CENTER);
-  drawString(bot2X, bottomY, ConvertUnixTime(WxConditions[0].Sunset).substring(0, 5), CENTER);
-  drawString(bot3X, bottomY, String(WxForecast[0].Pop * 100, 0) + "%", CENTER);
-
-  setFont(OpenSans10B);
-  drawString(bot1X, bottomY + 35, TXT_SUNRISE, CENTER);
-  drawString(bot2X, bottomY + 35, TXT_SUNSET, CENTER);
-  drawString(bot3X, bottomY + 35, TXT_RAIN_PROB, CENTER);
+  String uvLevel;
+  float uv = WxConditions[0].UVIndex;
+  if (uv < 3) uvLevel = " " + TXT_UV_LOW;
+  else if (uv < 6) uvLevel = " " + TXT_UV_MODERATE;
+  else if (uv < 8) uvLevel = " " + TXT_UV_HIGH;
+  else if (uv < 11) uvLevel = " " + TXT_UV_VERY_HIGH;
+  else uvLevel = " " + TXT_UV_EXTREME;
+  drawString(centerX, uvY + 5, TXT_UV_INDEX + ": " + String(uv, 1) + uvLevel, CENTER);
 }
 
 // Screen 3: Extended forecast

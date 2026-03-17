@@ -295,6 +295,26 @@ const char* TXT_WIND_ARR[] = { "Viento", "Wind", "Vent" };
 const char* TXT_WIND_DIR_ARR[] = { "Direccion Viento", "Wind Direction", "Direction Vent" };
 const char* TXT_RAIN_PROB_ARR[] = { "Prob. Lluvia", "Rain Prob.", "Prob. Pluie" };
 const char* TXT_FEELS_LIKE_ARR[] = { "Sensacion termica", "Feels like", "Ressenti" };
+const char* TXT_UV_INDEX_ARR[] = { "Indice UV", "UV Index", "Indice UV" };
+const char* TXT_AIR_QUALITY_ARR[] = { "Calidad del Aire", "Air Quality", "Qualite de l'Air" };
+const char* TXT_AQI_ARR[] = { "ICA", "AQI", "IQA" };
+const char* TXT_AQI_GOOD_ARR[] = { "Bueno", "Good", "Bon" };
+const char* TXT_AQI_FAIR_ARR[] = { "Aceptable", "Fair", "Acceptable" };
+const char* TXT_AQI_MODERATE_ARR[] = { "Moderado", "Moderate", "Modere" };
+const char* TXT_AQI_POOR_ARR[] = { "Malo", "Poor", "Mauvais" };
+const char* TXT_AQI_VERY_POOR_ARR[] = { "Muy Malo", "Very Poor", "Tres Mauvais" };
+const char* TXT_UV_LOW_ARR[] = { "Bajo", "Low", "Bas" };
+const char* TXT_UV_MODERATE_ARR[] = { "Moderado", "Moderate", "Modere" };
+const char* TXT_UV_HIGH_ARR[] = { "Alto", "High", "Eleve" };
+const char* TXT_UV_VERY_HIGH_ARR[] = { "Muy Alto", "Very High", "Tres Eleve" };
+const char* TXT_UV_EXTREME_ARR[] = { "Extremo", "Extreme", "Extreme" };
+const char* TXT_OZONE_ARR[] = { "Ozono", "Ozone", "Ozone" };
+// Abbreviated UV levels for compact display
+const char* TXT_UV_LOW_S_ARR[] = { "Bajo", "Low", "Bas" };
+const char* TXT_UV_MOD_S_ARR[] = { "Mod.", "Mod.", "Mod." };
+const char* TXT_UV_HIGH_S_ARR[] = { "Alto", "High", "Haut" };
+const char* TXT_UV_VHIGH_S_ARR[] = { "M.Alto", "V.High", "T.Haut" };
+const char* TXT_UV_EXT_S_ARR[] = { "Extr.", "Extr.", "Extr." };
 
 #define TXT_HUMIDITY String(TXT_HUMIDITY_ARR[currentLang])
 #define TXT_PRESSURE String(TXT_PRESSURE_ARR[currentLang])
@@ -304,6 +324,25 @@ const char* TXT_FEELS_LIKE_ARR[] = { "Sensacion termica", "Feels like", "Ressent
 #define TXT_WIND_DIR String(TXT_WIND_DIR_ARR[currentLang])
 #define TXT_RAIN_PROB String(TXT_RAIN_PROB_ARR[currentLang])
 #define TXT_FEELS_LIKE String(TXT_FEELS_LIKE_ARR[currentLang])
+#define TXT_UV_INDEX String(TXT_UV_INDEX_ARR[currentLang])
+#define TXT_AIR_QUALITY String(TXT_AIR_QUALITY_ARR[currentLang])
+#define TXT_AQI String(TXT_AQI_ARR[currentLang])
+#define TXT_AQI_GOOD String(TXT_AQI_GOOD_ARR[currentLang])
+#define TXT_AQI_FAIR String(TXT_AQI_FAIR_ARR[currentLang])
+#define TXT_AQI_MODERATE String(TXT_AQI_MODERATE_ARR[currentLang])
+#define TXT_AQI_POOR String(TXT_AQI_POOR_ARR[currentLang])
+#define TXT_AQI_VERY_POOR String(TXT_AQI_VERY_POOR_ARR[currentLang])
+#define TXT_UV_LOW String(TXT_UV_LOW_ARR[currentLang])
+#define TXT_UV_MODERATE String(TXT_UV_MODERATE_ARR[currentLang])
+#define TXT_UV_HIGH String(TXT_UV_HIGH_ARR[currentLang])
+#define TXT_UV_VERY_HIGH String(TXT_UV_VERY_HIGH_ARR[currentLang])
+#define TXT_UV_EXTREME String(TXT_UV_EXTREME_ARR[currentLang])
+#define TXT_OZONE String(TXT_OZONE_ARR[currentLang])
+#define TXT_UV_LOW_S String(TXT_UV_LOW_S_ARR[currentLang])
+#define TXT_UV_MOD_S String(TXT_UV_MOD_S_ARR[currentLang])
+#define TXT_UV_HIGH_S String(TXT_UV_HIGH_S_ARR[currentLang])
+#define TXT_UV_VHIGH_S String(TXT_UV_VHIGH_S_ARR[currentLang])
+#define TXT_UV_EXT_S String(TXT_UV_EXT_S_ARR[currentLang])
 
 // ============== INITIALIZE LANGUAGE ==============
 void initLanguage(const char* lang) {

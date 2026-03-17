@@ -16,7 +16,8 @@ enum ScreenState {
   SCREEN_FORECAST,
   SCREEN_GRAPHS,
   SCREEN_INFO,
-  SCREEN_HISTORY
+  SCREEN_HISTORY,
+  SCREEN_AIR_QUALITY
 };
 
 // Touch zone structure
@@ -247,6 +248,24 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
     }
     Serial.println(">>> Touch on HISTORY screen - returning to main");
     return SCREEN_MAIN;
+  }
+
+  // Special handling for CURRENT_DETAIL screen
+  if (currentState == SCREEN_CURRENT_DETAIL) {
+    // Bottom section below line Y=425 (inverted Y: 0-115) → Air Quality
+    if (touchY >= 0 && touchY <= 115) {
+      Serial.println(">>> Bottom section touched - going to Air Quality screen");
+      return SCREEN_AIR_QUALITY;
+    }
+    // Top section → Main screen
+    Serial.println(">>> Top section touched - returning to main");
+    return SCREEN_MAIN;
+  }
+
+  // Special handling for AIR_QUALITY screen - any touch returns to Current Detail
+  if (currentState == SCREEN_AIR_QUALITY) {
+    Serial.println(">>> Touch on AIR_QUALITY screen - returning to Current Detail");
+    return SCREEN_CURRENT_DETAIL;
   }
 
   // Any touch on other secondary screens returns to main
