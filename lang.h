@@ -203,28 +203,71 @@ const char* TXT_SEC_ARR[] = { "seg", "sec", "sec" };
 #define TXT_SEC String(TXT_SEC_ARR[currentLang])
 
 // ============== WIND DIRECTIONS ==============
-// Wind directions are universal abbreviations
-const String TXT_N   = "N";
-const String TXT_NNE = "NNE";
-const String TXT_NE  = "NE";
-const String TXT_ENE = "ENE";
-const String TXT_E   = "E";
-const String TXT_ESE = "ESE";
-const String TXT_SE  = "SE";
-const String TXT_SSE = "SSE";
-const String TXT_S   = "S";
-const String TXT_SSW = "SSW";
-const String TXT_SW  = "SW";
-const String TXT_WSW = "WSW";
-const String TXT_W   = "W";
-const String TXT_WNW = "WNW";
-const String TXT_NW  = "NW";
-const String TXT_NNW = "NNW";
+// Spanish: O=Oeste, English: W=West, French: O=Ouest
+const char* TXT_N_ARR[]   = { "N",   "N",   "N" };
+const char* TXT_NNE_ARR[] = { "NNE", "NNE", "NNE" };
+const char* TXT_NE_ARR[]  = { "NE",  "NE",  "NE" };
+const char* TXT_ENE_ARR[] = { "ENE", "ENE", "ENE" };
+const char* TXT_E_ARR[]   = { "E",   "E",   "E" };
+const char* TXT_ESE_ARR[] = { "ESE", "ESE", "ESE" };
+const char* TXT_SE_ARR[]  = { "SE",  "SE",  "SE" };
+const char* TXT_SSE_ARR[] = { "SSE", "SSE", "SSE" };
+const char* TXT_S_ARR[]   = { "S",   "S",   "S" };
+const char* TXT_SSW_ARR[] = { "SSO", "SSW", "SSO" };
+const char* TXT_SW_ARR[]  = { "SO",  "SW",  "SO" };
+const char* TXT_WSW_ARR[] = { "OSO", "WSW", "OSO" };
+const char* TXT_W_ARR[]   = { "O",   "W",   "O" };
+const char* TXT_WNW_ARR[] = { "ONO", "WNW", "ONO" };
+const char* TXT_NW_ARR[]  = { "NO",  "NW",  "NO" };
+const char* TXT_NNW_ARR[] = { "NNO", "NNW", "NNO" };
+
+#define TXT_N   String(TXT_N_ARR[currentLang])
+#define TXT_NNE String(TXT_NNE_ARR[currentLang])
+#define TXT_NE  String(TXT_NE_ARR[currentLang])
+#define TXT_ENE String(TXT_ENE_ARR[currentLang])
+#define TXT_E   String(TXT_E_ARR[currentLang])
+#define TXT_ESE String(TXT_ESE_ARR[currentLang])
+#define TXT_SE  String(TXT_SE_ARR[currentLang])
+#define TXT_SSE String(TXT_SSE_ARR[currentLang])
+#define TXT_S   String(TXT_S_ARR[currentLang])
+#define TXT_SSW String(TXT_SSW_ARR[currentLang])
+#define TXT_SW  String(TXT_SW_ARR[currentLang])
+#define TXT_WSW String(TXT_WSW_ARR[currentLang])
+#define TXT_W   String(TXT_W_ARR[currentLang])
+#define TXT_WNW String(TXT_WNW_ARR[currentLang])
+#define TXT_NW  String(TXT_NW_ARR[currentLang])
+#define TXT_NNW String(TXT_NNW_ARR[currentLang])
 
 // ============== DAYS OF WEEK ==============
 const char* weekday_ES[] = { "Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado" };
 const char* weekday_EN[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 const char* weekday_FR[] = { "Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam" };
+
+// Short 3-letter abbreviations for calendar (Monday first)
+const char* weekday_short_ES[] = { "LUN", "MAR", "MIE", "JUE", "VIE", "SAB", "DOM" };
+const char* weekday_short_EN[] = { "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN" };
+const char* weekday_short_FR[] = { "LUN", "MAR", "MER", "JEU", "VEN", "SAM", "DIM" };
+
+// Mini 1-letter abbreviations for yearly calendar (Monday first)
+const char* weekday_mini_ES[] = { "L", "M", "M", "J", "V", "S", "D" };
+const char* weekday_mini_EN[] = { "M", "T", "W", "T", "F", "S", "S" };
+const char* weekday_mini_FR[] = { "L", "M", "M", "J", "V", "S", "D" };
+
+const char* getWeekdayShort(int day) {
+  switch (currentLang) {
+    case LANG_EN: return weekday_short_EN[day];
+    case LANG_FR: return weekday_short_FR[day];
+    default: return weekday_short_ES[day];
+  }
+}
+
+const char* getWeekdayMini(int day) {
+  switch (currentLang) {
+    case LANG_EN: return weekday_mini_EN[day];
+    case LANG_FR: return weekday_mini_FR[day];
+    default: return weekday_mini_ES[day];
+  }
+}
 
 const char* getWeekday(int day) {
   switch (currentLang) {
@@ -250,11 +293,37 @@ const char* month_ES[] = { "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio"
 const char* month_EN[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 const char* month_FR[] = { "Jan", "Fev", "Mar", "Avr", "Mai", "Juin", "Juil", "Aout", "Sep", "Oct", "Nov", "Dec" };
 
+// Full month names for calendar
+const char* month_full_ES[] = { "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" };
+const char* month_full_EN[] = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" };
+const char* month_full_FR[] = { "Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre" };
+
+// Uppercase month names for yearly calendar
+const char* month_upper_ES[] = { "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE" };
+const char* month_upper_EN[] = { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
+const char* month_upper_FR[] = { "JAN", "FEV", "MAR", "AVR", "MAI", "JUIN", "JUIL", "AOUT", "SEP", "OCT", "NOV", "DEC" };
+
 const char* getMonth(int month) {
   switch (currentLang) {
     case LANG_EN: return month_EN[month];
     case LANG_FR: return month_FR[month];
     default: return month_ES[month];
+  }
+}
+
+const char* getMonthFull(int month) {
+  switch (currentLang) {
+    case LANG_EN: return month_full_EN[month];
+    case LANG_FR: return month_full_FR[month];
+    default: return month_full_ES[month];
+  }
+}
+
+const char* getMonthUpper(int month) {
+  switch (currentLang) {
+    case LANG_EN: return month_upper_EN[month];
+    case LANG_FR: return month_upper_FR[month];
+    default: return month_upper_ES[month];
   }
 }
 
@@ -276,7 +345,7 @@ const char* TXT_5DAY_FORECAST_ARR[] = { "Pronostico", "Forecast", "Previsions" }
 const char* TXT_WEATHER_TRENDS_ARR[] = { "Tendencia del Clima", "Weather Trends", "Tendances Meteo" };
 const char* TXT_NEXT_24H_ARR[] = { "Proximas 24 Horas", "Next 24 Hours", "Prochaines 24 Heures" };
 const char* TXT_5DAY_OUTLOOK_ARR[] = { "Proximos 5 Dias", "Next 5 Days", "Prochains 5 Jours" };
-const char* TXT_SYSTEM_INFO_ARR[] = { "Informacion del Sistema", "System Information", "Informations Systeme" };
+const char* TXT_SYSTEM_INFO_ARR[] = { "Configuracion del Sistema", "System Configuration", "Configuration Systeme" };
 
 #define TXT_BACK String(TXT_BACK_ARR[currentLang])
 #define TXT_CURRENT_CONDITIONS String(TXT_CURRENT_CONDITIONS_ARR[currentLang])

@@ -6,8 +6,6 @@
 // GT911 Touch Controller Configuration for LilyGo T5 4.7" S3
 #define TOUCH_SDA   18
 #define TOUCH_SCL   17
-#define TOUCH_INT   47
-#define TOUCH_RST   -1
 
 // Screen states
 enum ScreenState {
@@ -18,7 +16,12 @@ enum ScreenState {
   SCREEN_INFO,
   SCREEN_HISTORY,
   SCREEN_AIR_QUALITY,
-  SCREEN_CALENDAR
+  SCREEN_CALENDAR,
+  SCREEN_CALENDAR_YEAR,
+  SCREEN_INFO_FEATURES1,
+  SCREEN_INFO_FEATURES2,
+  SCREEN_INFO_HELP,
+  SCREEN_INFO_CREDITS
 };
 
 // Touch zone structure
@@ -34,10 +37,9 @@ unsigned long navigationStartTime = 0;
 bool navigationModeActive = false;
 bool historyShowWeek = false;  // false = 48h, true = 1 week
 int calendarMonthOffset = 0;   // 0 = current month, -1 = previous, +1 = next
+int calendarYearOffset = 0;    // 0 = current year, -1 = previous, +1 = next
 
-const unsigned long SCREEN_TIMEOUT_MS = 30000;      // 30 seconds
-const unsigned long MAX_NAVIGATION_TIME_MS = 300000; // 5 minutes max
-const unsigned long CALENDAR_HOLD_MS = 800;         // Hold time to activate calendar (hidden feature)
+const unsigned long CALENDAR_HOLD_MS = 800;  // Hold time to activate calendar (hidden feature)
 
 // Main screen touch zones
 // Based on actual measurements: top-right corner = X~914, Y~281
@@ -45,13 +47,13 @@ const unsigned long CALENDAR_HOLD_MS = 800;         // Hold time to activate cal
 const TouchZone mainScreenZones[] = {
   // Battery/WiFi area top-right - System info (X 800-960, Y 230-330)
   {800, 230, 960, 330, SCREEN_INFO},
-  // Date/Time area - Calendar (hidden, small zone X 500-650, Y 270-310) - requires long press
-  {500, 270, 650, 310, SCREEN_CALENDAR},
+  // Moon/Sunrise/Sunset area (left 1/3) - Calendar (X 0-320, Y 70-150)
+  {0, 70, 320, 150, SCREEN_CALENDAR},
   // Top section - current conditions (expanded to cover weather icon/wind rose)
   {0, 150, 800, 400, SCREEN_CURRENT_DETAIL},
   {800, 330, 960, 400, SCREEN_CURRENT_DETAIL},
-  // Middle section - 5-day forecast (reduced: Y 70-150)
-  {0, 70, 960, 150, SCREEN_FORECAST},
+  // Forecast icons (right 2/3 of middle section: X 320-960, Y 70-150)
+  {320, 70, 960, 150, SCREEN_FORECAST},
   // Bottom section - graphs area split in two:
   // Left half -> History
   {480, 0, 960, 70, SCREEN_HISTORY},
@@ -75,7 +77,6 @@ TouchPoint lastTouch = {0, 0, false};
 uint8_t gt911_addr = GT911_ADDR1;
 
 // GT911 Registers
-#define GT911_PRODUCT_ID    0x8140
 #define GT911_TOUCH_STATUS  0x814E
 #define GT911_POINT1_X_LOW  0x8150
 
@@ -228,13 +229,20 @@ bool readTouchPoint(TouchPoint &point) {
 #define SCREEN_HISTORY_TOGGLE 98
 #define SCREEN_CALENDAR_PREV 97
 #define SCREEN_CALENDAR_NEXT 96
+#define SCREEN_CALENDAR_YEAR_PREV 95
+#define SCREEN_CALENDAR_YEAR_NEXT 94
 
 // Check which zone was touched
 ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
   Serial.printf("Checking zones for touch at (%d, %d), current screen: %d\n", touchX, touchY, currentState);
 
-  // Special handling for INFO screen - check clean button zone (bottom area)
+  // Special handling for INFO screen - arrow to Features1 or clean button
   if (currentState == SCREEN_INFO) {
+    // Right arrow zone (right side, Y 230-330 like calendar)
+    if (touchX >= 800 && touchX <= 960 && touchY >= 230 && touchY <= 330) {
+      Serial.println(">>> Info next arrow touched - going to Features 1/2");
+      return SCREEN_INFO_FEATURES1;
+    }
     // Clean button zone: bottom center (inverted coords: X 300-660, Y 0-100)
     if (touchX >= 300 && touchX <= 660 && touchY >= 0 && touchY <= 100) {
       Serial.println(">>> Clean button touched on INFO screen");
@@ -242,6 +250,54 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
     }
     Serial.println(">>> Touch on INFO screen - returning to main");
     return SCREEN_MAIN;
+  }
+
+  // Special handling for INFO_FEATURES1 screen - arrow to Features2 or back to Info
+  if (currentState == SCREEN_INFO_FEATURES1) {
+    // Right arrow zone - go to Features2
+    if (touchX >= 800 && touchX <= 960 && touchY >= 230 && touchY <= 330) {
+      Serial.println(">>> Features1 next arrow - going to Features 2/2");
+      return SCREEN_INFO_FEATURES2;
+    }
+    // Any other touch returns to Info
+    Serial.println(">>> Touch on FEATURES1 - returning to Info");
+    return SCREEN_INFO;
+  }
+
+  // Special handling for INFO_FEATURES2 screen - arrow to Help or back to Info
+  if (currentState == SCREEN_INFO_FEATURES2) {
+    // Right arrow zone - go to Help
+    if (touchX >= 800 && touchX <= 960 && touchY >= 230 && touchY <= 330) {
+      Serial.println(">>> Features2 next arrow - going to Help");
+      return SCREEN_INFO_HELP;
+    }
+    // Any other touch returns to Info
+    Serial.println(">>> Touch on FEATURES2 - returning to Info");
+    return SCREEN_INFO;
+  }
+
+  // Special handling for INFO_HELP screen - arrow to Credits or back to Info
+  if (currentState == SCREEN_INFO_HELP) {
+    // Right arrow zone - go to Credits
+    if (touchX >= 800 && touchX <= 960 && touchY >= 230 && touchY <= 330) {
+      Serial.println(">>> Help next arrow - going to Credits");
+      return SCREEN_INFO_CREDITS;
+    }
+    // Any other touch returns to Info
+    Serial.println(">>> Touch on HELP - returning to Info");
+    return SCREEN_INFO;
+  }
+
+  // Special handling for INFO_CREDITS screen - arrow back to Info (circular)
+  if (currentState == SCREEN_INFO_CREDITS) {
+    // Right arrow zone - go back to Info (circular)
+    if (touchX >= 800 && touchX <= 960 && touchY >= 230 && touchY <= 330) {
+      Serial.println(">>> Credits next arrow - going to Info");
+      return SCREEN_INFO;
+    }
+    // Any other touch returns to Info
+    Serial.println(">>> Touch on CREDITS - returning to Info");
+    return SCREEN_INFO;
   }
 
   // Special handling for HISTORY screen - toggle zone at top right
@@ -273,21 +329,46 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
     return SCREEN_CURRENT_DETAIL;
   }
 
-  // Special handling for CALENDAR screen - arrows for prev/next month
+  // Special handling for CALENDAR screen - arrows near title, title for year view
+  // Based on actual touch readings: title at Y_draw=25 gives touch Y~281
   if (currentState == SCREEN_CALENDAR) {
-    // Left arrow zone (X 50-150, Y 200-320) - previous month
-    if (touchX >= 50 && touchX <= 200 && touchY >= 200 && touchY <= 350) {
+    // Title zone (center, Y 230-330 based on actual touch at 281)
+    if (touchX >= 250 && touchX <= 710 && touchY >= 230 && touchY <= 330) {
+      Serial.println(">>> Calendar title touched - going to year view");
+      return SCREEN_CALENDAR_YEAR;
+    }
+    // Left arrow zone (left side, same Y range as title)
+    if (touchX >= 0 && touchX <= 250 && touchY >= 230 && touchY <= 330) {
       Serial.println(">>> Calendar prev month touched");
       return (ScreenState)SCREEN_CALENDAR_PREV;
     }
-    // Right arrow zone (X 760-910, Y 200-320) - next month
-    if (touchX >= 760 && touchX <= 910 && touchY >= 200 && touchY <= 350) {
+    // Right arrow zone (right side, same Y range as title)
+    if (touchX >= 710 && touchX <= 960 && touchY >= 230 && touchY <= 330) {
       Serial.println(">>> Calendar next month touched");
       return (ScreenState)SCREEN_CALENDAR_NEXT;
     }
     Serial.println(">>> Touch on CALENDAR screen - returning to main");
     calendarMonthOffset = 0;  // Reset offset when leaving
     return SCREEN_MAIN;
+  }
+
+  // Special handling for CALENDAR_YEAR screen - arrows for year navigation
+  // Using same Y range as monthly calendar (based on actual touch readings)
+  if (currentState == SCREEN_CALENDAR_YEAR) {
+    // Left arrow zone - previous year
+    if (touchX >= 0 && touchX <= 250 && touchY >= 230 && touchY <= 330) {
+      Serial.println(">>> Calendar year prev touched");
+      return (ScreenState)SCREEN_CALENDAR_YEAR_PREV;
+    }
+    // Right arrow zone - next year
+    if (touchX >= 710 && touchX <= 960 && touchY >= 230 && touchY <= 330) {
+      Serial.println(">>> Calendar year next touched");
+      return (ScreenState)SCREEN_CALENDAR_YEAR_NEXT;
+    }
+    // Any other touch returns to monthly calendar
+    Serial.println(">>> Touch on CALENDAR_YEAR screen - returning to monthly calendar");
+    calendarYearOffset = 0;  // Reset offset when leaving
+    return SCREEN_CALENDAR;
   }
 
   // Any touch on other secondary screens returns to main
@@ -321,23 +402,6 @@ bool pollTouch() {
     lastTouchTime = millis();
     Serial.printf("Touch detected at: %d, %d\n", point.x, point.y);
     return true;
-  }
-  return false;
-}
-
-// Check for timeout on secondary screens
-bool checkNavigationTimeout() {
-  if (currentScreen != SCREEN_MAIN) {
-    unsigned long elapsed = millis() - lastTouchTime;
-    if (elapsed > SCREEN_TIMEOUT_MS) {
-      Serial.println("Navigation timeout - returning to main screen");
-      return true;
-    }
-    // Safety timeout
-    if (millis() - navigationStartTime > MAX_NAVIGATION_TIME_MS) {
-      Serial.println("Max navigation time exceeded - returning to main screen");
-      return true;
-    }
   }
   return false;
 }

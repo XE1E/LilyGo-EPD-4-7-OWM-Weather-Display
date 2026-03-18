@@ -13,7 +13,11 @@
 9. [Gestion de Energia](#9-gestion-de-energia)
 10. [Carcasa Impresa en 3D](#10-carcasa-impresa-en-3d)
 11. [Solucion de Problemas](#11-solucion-de-problemas)
-12. [Apendice](#12-apendice)
+12. [Funciones Especiales](#12-funciones-especiales)
+    - [12.1 Calendario](#121-calendario)
+    - [12.2 Tarjeta SD](#122-tarjeta-sd)
+    - [12.3 Acceso Web](#123-acceso-web)
+13. [Apendice](#13-apendice)
 
 ---
 
@@ -26,7 +30,7 @@ La Estacion Meteorologica LilyGo EPD 4.7" es un dispositivo basado en ESP32-S3 q
 ### 1.2 Caracteristicas Principales
 
 - **Pantalla e-paper de 4.7 pulgadas** - 960x540 pixeles, escala de grises
-- **Navegacion tactil** - Controlador GT911 con 6 pantallas navegables
+- **Navegacion tactil** - Controlador GT911 con 11 pantallas navegables
 - **Multi-WiFi** - Soporte para hasta 3 redes WiFi configurables
 - **Modo AP (Access Point)** - Portal cautivo para configuracion inicial
 - **Servidor web integrado** - Configuracion desde cualquier navegador en la red local
@@ -576,14 +580,14 @@ Ver seccion 5.3 para detalles completos del comportamiento.
 #### Barra de Estado (esquina superior derecha)
 
 ```
-[Bateria]  [SD]  [WiFi]
- 85% 4.1v         -65dB
+  [SD]  [Bateria]  [WiFi]
+        85% 4.1v   -65dB
 ```
 
 | Indicador | Descripcion |
 |-----------|-------------|
-| Bateria | Icono con nivel de carga, porcentaje y voltaje debajo |
 | SD | Icono de tarjeta SD (solo visible si hay SD insertada) |
+| Bateria | Icono con nivel de carga, porcentaje y voltaje debajo |
 | WiFi | Barras de intensidad (1-5) con valor RSSI en dB |
 
 #### Colores/Tonos
@@ -598,19 +602,19 @@ Ver seccion 5.3 para detalles completos del comportamiento.
 
 ### 7.1 Sistema de Navegacion Tactil
 
-El dispositivo tiene **6 pantallas** navegables tocando diferentes zonas:
+El dispositivo tiene **11 pantallas** navegables tocando diferentes zonas:
 
 ```
 Pantalla Principal (SCREEN_MAIN)
 +-------------------------------------+
-| [Ciudad]       [Bat][SD][WiFi]<-|  Zona Info (esquina sup-der)
-| [Fecha] @ [Hora]                 |  -> Pantalla 5: Info Sistema
+| [Ciudad]       [SD][Bat][WiFi]<-|  Zona Info (esquina sup-der)
+| [Fecha] @ [Hora]                 |  -> Pantalla 4: Info Sistema
 +==================================+
 |                                  |
 | [Rosa Vientos]   [Temp] [Hum]   |  Zona superior
 |                  [Max/Min]      |  -> Pantalla 1: Condiciones
-| [Luna][Sol]      [Descripcion]  |     Actuales
-|                  [ICONO]        |
+| [Luna][Sol] <-   [Descripcion]  |     Actuales
+|  Calendario      [ICONO]        |  Zona Luna/Sol -> Calendario
 |                                  |
 +==================================+
 | [+3h] [+6h] [+9h] ... [+21h]    |  Zona media (pronostico horas)
@@ -627,10 +631,10 @@ Pantalla Principal (SCREEN_MAIN)
 ### 7.2 Pantalla Principal (Main)
 
 ```
-+--[Ciudad]--------------[Bateria][SD][WiFi]--+
-|                         85% 4.1v            |
-|  [Fecha]  @ [Hora]                          |
-+---------------------------------------------+
++--[Ciudad]---------------[SD][Bateria][WiFi]--+
+|                            85% 4.1v          |
+|  [Fecha]  @ [Hora]                           |
++----------------------------------------------+
 |                                               |
 | [Rosa de Vientos]  [Temperatura] [Humedad]    |
 |     [Direccion]    [Max/Min]                  |
@@ -654,8 +658,8 @@ Pantalla Principal (SCREEN_MAIN)
 | Elemento | Descripcion |
 |----------|-------------|
 | Ciudad | Nombre de la ubicacion configurada |
-| Bateria | Icono con nivel de carga, porcentaje y voltaje debajo |
 | SD | Icono de tarjeta SD (solo visible si hay SD insertada) |
+| Bateria | Icono con nivel de carga, porcentaje y voltaje debajo |
 | WiFi | Barras de señal WiFi con nivel en dB |
 | Fecha/Hora | Fecha actual y hora de ultima actualizacion |
 | Rosa de Vientos | Direccion del viento con brujula visual |
@@ -1256,9 +1260,162 @@ Soportes:        Activados (especialmente para Frame y Top)
 
 ---
 
-## 12. Apendice
+## 12. Funciones Especiales
 
-### 12.1 Fuentes Disponibles
+Esta seccion documenta las funciones ocultas o especiales del dispositivo que no son evidentes en la navegacion normal.
+
+### 12.1 Calendario
+
+El dispositivo incluye un sistema de calendario completo con vistas mensual y anual.
+
+#### 12.1.1 Acceso al Calendario
+
+Para acceder al calendario desde la pantalla principal:
+
+1. **Ubicar la zona de activacion**: Area del icono de la luna, amanecer y atardecer (esquina superior izquierda)
+2. **Tocar la zona**: Un toque normal activa el calendario
+3. **Activacion**: La pantalla cambiara al calendario mensual
+
+#### 12.1.2 Calendario Mensual
+
+Muestra un mes completo con las siguientes caracteristicas:
+
+| Elemento | Descripcion |
+|----------|-------------|
+| Titulo | Nombre del mes y ano (ej: "Marzo 2026") |
+| Flechas dobles | Navegacion entre meses (izquierda/derecha) |
+| Encabezados | LUN, MAR, MIE, JUE, VIE, SAB, DOM |
+| Dias | Numeros del 1 al 28/29/30/31 segun el mes |
+| Dia actual | Marcado con subrayado doble |
+| Semana | Inicia en lunes |
+
+**Navegacion del Calendario Mensual:**
+
+| Accion | Zona de toque | Resultado |
+|--------|---------------|-----------|
+| Mes anterior | Flechas izquierda (esquina superior izquierda) | Retrocede un mes |
+| Mes siguiente | Flechas derecha (esquina superior derecha) | Avanza un mes |
+| Ver ano | Titulo central (nombre del mes) | Cambia a vista anual |
+| Salir | Cualquier otra zona | Regresa a pantalla principal |
+
+#### 12.1.3 Calendario Anual
+
+Muestra los 12 meses del ano en una cuadricula de 3 columnas x 4 filas:
+
+| Elemento | Descripcion |
+|----------|-------------|
+| Titulo | Ano (ej: "2026") |
+| Flechas dobles | Navegacion entre anos |
+| Mini-calendarios | 12 meses con dias compactos |
+| Separadores | Lineas grises entre meses |
+| Dia actual | Marcado con subrayado (solo en ano actual) |
+
+**Navegacion del Calendario Anual:**
+
+| Accion | Zona de toque | Resultado |
+|--------|---------------|-----------|
+| Ano anterior | Flechas izquierda | Retrocede un ano |
+| Ano siguiente | Flechas derecha | Avanza un ano |
+| Salir | Cualquier otra zona | Regresa a calendario mensual |
+
+#### 12.1.4 Estructura del Codigo
+
+El codigo del calendario esta separado en su propio modulo:
+
+| Archivo | Contenido |
+|---------|-----------|
+| `calendar.h` | Funciones de dibujo de calendarios |
+| `touch_handler.h` | Zonas tactiles y navegacion |
+
+**Funciones principales:**
+- `DisplayCalendarScreen()` - Renderiza el calendario mensual
+- `DisplayCalendarYearScreen()` - Renderiza el calendario anual
+
+**Variables de navegacion:**
+- `calendarMonthOffset` - Desplazamiento de meses (0 = mes actual)
+- `calendarYearOffset` - Desplazamiento de anos (0 = ano actual)
+
+### 12.2 Tarjeta SD
+
+El dispositivo soporta almacenamiento extendido mediante tarjeta MicroSD.
+
+#### 12.2.1 Caracteristicas
+
+| Caracteristica | Descripcion |
+|----------------|-------------|
+| Formato | FAT32 (hasta 32GB) o exFAT (64GB+) |
+| Archivo | `/weather_history.csv` |
+| Capacidad | ~52,560 lecturas (~1 año a 10 min) |
+| Fallback | Si no hay SD, usa FFat interno (~7 dias) |
+
+#### 12.2.2 Formato del Archivo CSV
+
+```csv
+timestamp,temp,humidity,pressure,wind_speed,wind_dir,rain,description
+1710000000,22.5,65,1013,5.2,180,0.0,Parcialmente nublado
+```
+
+| Campo | Descripcion |
+|-------|-------------|
+| timestamp | Unix timestamp (segundos desde 1970) |
+| temp | Temperatura en unidades configuradas |
+| humidity | Humedad relativa (%) |
+| pressure | Presion atmosferica (hPa) |
+| wind_speed | Velocidad del viento |
+| wind_dir | Direccion del viento (grados) |
+| rain | Precipitacion (mm o in) |
+| description | Descripcion del clima |
+
+#### 12.2.3 Indicador en Pantalla
+
+Cuando hay una tarjeta SD insertada, aparece un icono de SD en la barra de estado (esquina superior derecha). El icono no aparece si no hay tarjeta.
+
+### 12.3 Acceso Web
+
+El dispositivo incluye un servidor web que permite configuracion y acceso a datos desde cualquier navegador en la red local.
+
+#### 12.3.1 Activacion
+
+El servidor web se activa automaticamente al conectar WiFi. No requiere configuracion adicional.
+
+#### 12.3.2 Endpoints Disponibles
+
+| Endpoint | Descripcion |
+|----------|-------------|
+| `http://[IP]/` | Pagina de configuracion (4 pestanas) |
+| `http://[IP]/history` | Ultimas 50 lecturas en tabla HTML |
+| `http://[IP]/history.csv` | Descarga CSV completo (requiere SD) |
+
+#### 12.3.3 Pagina de Historial (/history)
+
+Muestra una tabla con las ultimas 50 lecturas del buffer en memoria:
+
+- Fecha y hora de cada lectura
+- Temperatura, humedad, presion
+- Enlace para descargar CSV (si hay SD)
+
+#### 12.3.4 Descarga CSV (/history.csv)
+
+- Descarga el archivo completo de la tarjeta SD
+- Nombre del archivo: `weather_history.csv`
+- Si no hay SD insertada, devuelve error 404
+- Util para analisis en Excel, Google Sheets, etc.
+
+#### 12.3.5 Timeout del Servidor
+
+| Condicion | Comportamiento |
+|-----------|----------------|
+| Sin acceso web | Sleep a los 30 seg (configurable) |
+| Acceso a pagina de config | Timeout extendido a 2 min |
+| Guardar configuracion | Reinicia timeout de 2 min |
+
+El servidor permanece activo mientras se este usando la pagina de configuracion, evitando que el dispositivo entre en sleep durante la configuracion.
+
+---
+
+## 13. Apendice
+
+### 13.1 Fuentes Disponibles
 
 | Nombre | Tamano | Uso |
 |--------|--------|-----|
@@ -1272,7 +1429,7 @@ Soportes:        Activados (especialmente para Frame y Top)
 | OpenSans24B | 24pt | Temperatura, datos principales |
 | OpenSans28B | 28pt | Numeros extra grandes |
 
-### 12.2 Coordenadas de Pantalla
+### 13.2 Coordenadas de Pantalla
 
 ```
 (0,0)--------------------------(960,0)
@@ -1282,20 +1439,22 @@ Soportes:        Activados (especialmente para Frame y Top)
 (0,540)-----------------------(960,540)
 ```
 
-### 12.3 Direcciones del Viento
+### 13.3 Direcciones del Viento
 
-| Grados | Direccion |
-|--------|-----------|
-| 0 / 360 | N (Norte) |
-| 45 | NE (Noreste) |
-| 90 | E (Este) |
-| 135 | SE (Sureste) |
-| 180 | S (Sur) |
-| 225 | SW (Suroeste) |
-| 270 | W (Oeste) |
-| 315 | NW (Noroeste) |
+Las abreviaciones varian segun el idioma configurado:
 
-### 12.4 Fases Lunares
+| Grados | Espanol | English | Francais |
+|--------|---------|---------|----------|
+| 0 / 360 | N | N | N |
+| 45 | NE | NE | NE |
+| 90 | E | E | E |
+| 135 | SE | SE | SE |
+| 180 | S | S | S |
+| 225 | SO | SW | SO |
+| 270 | O | W | O |
+| 315 | NO | NW | NO |
+
+### 13.4 Fases Lunares
 
 | Fase | Iluminacion | Nombre ES | Nombre EN |
 |------|-------------|-----------|-----------|
@@ -1308,7 +1467,7 @@ Soportes:        Activados (especialmente para Frame y Top)
 | 6 | 50% | Cuarto Menguante | Third Quarter |
 | 7 | 25% | Luna Menguante | Waning Crescent |
 
-### 12.5 Textos Multi-idioma
+### 13.5 Textos Multi-idioma
 
 El sistema soporta 3 idiomas configurables:
 
@@ -1328,7 +1487,7 @@ El sistema soporta 3 idiomas configurables:
 | 48 Horas | 48H | 48H | 48H |
 | 1 Semana | 1 Semana | 1 Week | 1 Semaine |
 
-### 12.6 Licencia y Creditos
+### 13.6 Licencia y Creditos
 
 **Software Original**: David Bird 2021
 **Modificaciones**: XE1E 2024
@@ -1337,7 +1496,19 @@ Este proyecto es de codigo abierto. Consultar el repositorio para detalles de li
 
 ---
 
-*Manual Version 2.0 - Marzo 2026*
+*Manual Version 2.1 - Marzo 2026*
+
+### Cambios en Version 2.1
+- Corregido orden barra de estado: SD, Bateria, WiFi
+- Corregida numeracion de pantallas (11 pantallas navegables)
+- Actualizada seccion de direcciones del viento con multi-idioma
+- Corregido acceso al calendario (toque normal, no prolongado)
+- Agregada zona de calendario en diagrama de navegacion
+- Rosa de vientos con direcciones en idioma configurado (O, NO, SO en español)
+- Mejorado espaciado y alineacion en pantalla Condiciones Actuales
+- Mejoradas fuentes en calendarios
+- Nueva seccion 12.2: Tarjeta SD (almacenamiento extendido, formato CSV)
+- Nueva seccion 12.3: Acceso Web (endpoints, historial, configuracion)
 
 ### Cambios en Version 2.0
 - Indice UV en pantalla Condiciones Actuales
@@ -1349,7 +1520,7 @@ Este proyecto es de codigo abierto. Consultar el repositorio para detalles de li
 - Acceso web al historial: `/history` y `/history.csv`
 - Icono SD en barra de estado (visible cuando hay tarjeta insertada)
 - Contador SD en pantalla de historial
-- Nueva disposicion barra de estado: Bateria (con % y V debajo), SD, WiFi
+- Nueva disposicion barra de estado: SD, Bateria, WiFi
 - Documentada nueva pantalla de Historial (datos reales grabados)
 - Actualizadas zonas tactiles de la pantalla principal
 - Agregado boton "Limpiar Pantalla" en Info Sistema

@@ -30,6 +30,7 @@
 
 #include <Arduino.h>            // In-built
 #include <esp_task_wdt.h>       // In-built
+#include <esp_sleep.h>          // In-built - for deep sleep and wake-up
 #include "freertos/FreeRTOS.h"  // In-built
 #include "freertos/task.h"      // In-built
 #include "epd_driver.h"         // https://github.com/Xinyuan-LilyGO/LilyGo-EPD47
@@ -133,14 +134,18 @@ int apRetryCount = 0;
 
 // Touch navigation (screen functions defined later in this file)
 #include "touch_handler.h"
+#include "calendar.h"
 
 // Forward declarations for screen functions
 void DisplayCurrentDetailScreen();
 void DisplayAirQualityScreen();
-void DisplayCalendarScreen();
 void DisplayForecastScreen();
 void DisplayGraphsScreen();
 void DisplayInfoScreen();
+void DisplayInfoFeatures1Screen();
+void DisplayInfoFeatures2Screen();
+void DisplayInfoHelpScreen();
+void DisplayInfoCreditsScreen();
 void DisplayHistoryScreen();
 void DisplayWeather();
 void DisplayConditionsSection(int x, int y, String IconName, bool IconSize);
@@ -155,8 +160,13 @@ float SumOfPrecip(float DataArray[], int readings);
 void drawString(int x, int y, String text, alignment align);
 void drawScreenHeader();
 void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color);
+void fillCircle(int x, int y, int r, uint8_t color);
+void drawCircle(int x0, int y0, int r, uint8_t color);
+void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
 void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
 void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color);
+void drawFastVLine(int16_t x0, int16_t y0, int length, uint16_t color);
 void setFont(GFXfont const &font);
 void edp_update();
 
@@ -189,7 +199,9 @@ void BeginSleep() {
   UpdateLocalTime();
   SleepTimer = (SleepDuration * 60 - ((CurrentMin % SleepDuration) * 60 + CurrentSec)) + Delta; //Some ESP32 have a RTC that is too fast to maintain accurate time, so add an offset
 
+  // Enable wake-up by timer
   esp_sleep_enable_timer_wakeup(SleepTimer * 1000000LL); // in Secs, 1000000LL converts to Secs as unit = 1uSec
+
   Serial.println("Awake for : " + String((millis() - StartTime) / 1000.0, 3) + "-secs");
   Serial.println("Entering " + String(SleepTimer) + " (secs) of sleep time");
   Serial.println("Starting deep-sleep period...");
@@ -205,7 +217,6 @@ boolean SetupTime() {
 }
 
 uint8_t StartWiFi() {
-  IPAddress dns(1,1,1,1); // Use Cloudflare DNS
   WiFi.disconnect();
   WiFi.mode(WIFI_STA); // switch off AP
   WiFi.setAutoConnect(true);
@@ -354,43 +365,33 @@ bool initSDCard() {
 // Track if display is powered on for navigation
 bool displayPoweredOn = false;
 
+// Draw current screen content to framebuffer
+void drawCurrentScreen() {
+  switch (currentScreen) {
+    case SCREEN_MAIN:           DisplayWeather(); break;
+    case SCREEN_CURRENT_DETAIL: DisplayCurrentDetailScreen(); break;
+    case SCREEN_FORECAST:       DisplayForecastScreen(); break;
+    case SCREEN_GRAPHS:         DisplayGraphsScreen(); break;
+    case SCREEN_INFO:           DisplayInfoScreen(); break;
+    case SCREEN_HISTORY:        DisplayHistoryScreen(); break;
+    case SCREEN_AIR_QUALITY:    DisplayAirQualityScreen(); break;
+    case SCREEN_CALENDAR:       DisplayCalendarScreen(); break;
+    case SCREEN_CALENDAR_YEAR:  DisplayCalendarYearScreen(); break;
+    case SCREEN_INFO_FEATURES1: DisplayInfoFeatures1Screen(); break;
+    case SCREEN_INFO_FEATURES2: DisplayInfoFeatures2Screen(); break;
+    case SCREEN_INFO_HELP:      DisplayInfoHelpScreen(); break;
+    case SCREEN_INFO_CREDITS:   DisplayInfoCreditsScreen(); break;
+  }
+}
+
 // Fast screen refresh - no epd_clear(), just overwrite framebuffer
 void refreshScreenFast() {
   if (!displayPoweredOn) {
     epd_poweron();
     displayPoweredOn = true;
   }
-
-  // Clear framebuffer only (fast) - no physical clear
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
-
-  switch (currentScreen) {
-    case SCREEN_MAIN:
-      DisplayWeather();
-      break;
-    case SCREEN_CURRENT_DETAIL:
-      DisplayCurrentDetailScreen();
-      break;
-    case SCREEN_FORECAST:
-      DisplayForecastScreen();
-      break;
-    case SCREEN_GRAPHS:
-      DisplayGraphsScreen();
-      break;
-    case SCREEN_INFO:
-      DisplayInfoScreen();
-      break;
-    case SCREEN_HISTORY:
-      DisplayHistoryScreen();
-      break;
-    case SCREEN_AIR_QUALITY:
-      DisplayAirQualityScreen();
-      break;
-    case SCREEN_CALENDAR:
-      DisplayCalendarScreen();
-      break;
-  }
-
+  drawCurrentScreen();
   edp_update();
 }
 
@@ -400,34 +401,7 @@ void refreshScreen() {
   displayPoweredOn = true;
   epd_clear();
   memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
-
-  switch (currentScreen) {
-    case SCREEN_MAIN:
-      DisplayWeather();
-      break;
-    case SCREEN_CURRENT_DETAIL:
-      DisplayCurrentDetailScreen();
-      break;
-    case SCREEN_FORECAST:
-      DisplayForecastScreen();
-      break;
-    case SCREEN_GRAPHS:
-      DisplayGraphsScreen();
-      break;
-    case SCREEN_INFO:
-      DisplayInfoScreen();
-      break;
-    case SCREEN_HISTORY:
-      DisplayHistoryScreen();
-      break;
-    case SCREEN_AIR_QUALITY:
-      DisplayAirQualityScreen();
-      break;
-    case SCREEN_CALENDAR:
-      DisplayCalendarScreen();
-      break;
-  }
-
+  drawCurrentScreen();
   edp_update();
 }
 
@@ -495,14 +469,33 @@ void handleTouchNavigation() {
     if (newScreen == SCREEN_CALENDAR_PREV) {
       calendarMonthOffset--;
       Serial.printf("Calendar: previous month (offset: %d)\n", calendarMonthOffset);
-      refreshScreenFast();
+      refreshScreen();
       return;
     }
     if (newScreen == SCREEN_CALENDAR_NEXT) {
       calendarMonthOffset++;
       Serial.printf("Calendar: next month (offset: %d)\n", calendarMonthOffset);
-      refreshScreenFast();
+      refreshScreen();
       return;
+    }
+
+    // Check for calendar year navigation actions
+    if (newScreen == SCREEN_CALENDAR_YEAR_PREV) {
+      calendarYearOffset--;
+      Serial.printf("Calendar: previous year (offset: %d)\n", calendarYearOffset);
+      refreshScreen();
+      return;
+    }
+    if (newScreen == SCREEN_CALENDAR_YEAR_NEXT) {
+      calendarYearOffset++;
+      Serial.printf("Calendar: next year (offset: %d)\n", calendarYearOffset);
+      refreshScreen();
+      return;
+    }
+
+    // Reset year offset when entering year calendar from monthly
+    if (newScreen == SCREEN_CALENDAR_YEAR && currentScreen == SCREEN_CALENDAR) {
+      calendarYearOffset = 0;
     }
 
     // Calendar requires long press (hidden feature)
@@ -716,6 +709,17 @@ void displayAPModeScreen() {
 
 void setup() {
   InitialiseSystem();
+
+  // Check wake-up cause (for debugging)
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+  switch(wakeup_reason) {
+    case ESP_SLEEP_WAKEUP_TIMER:
+      Serial.println("Wakeup caused by TIMER");
+      break;
+    default:
+      Serial.printf("Wakeup was not caused by deep sleep: %d (power on or reset)\n", wakeup_reason);
+      break;
+  }
 
   // Initialize touch controller
   if (InitializeTouch()) {
@@ -1061,7 +1065,7 @@ String TitleCase(String text) {
 void DisplayWeather() {                          // 4.7" e-paper display is 960x540 resolution
   DisplayStatusSection(600, 33, wifi_signal);    // Wi-Fi signal strength and Battery voltage
   DisplayGeneralInfoSection();                   // Top line of the display
-  DisplayDisplayWindSection(137, 160, WxConditions[0].Winddir, WxConditions[0].Windspeed, 100);
+  DisplayDisplayWindSection(147, 160, WxConditions[0].Winddir, WxConditions[0].Windspeed, 100);
   DisplayAstronomySection(15, 260);              // Astronomy section: Sunrise/set, Moon phase and icon
   DisplayMainWeatherSection(305, 100);           // Centre section: Location, temperature, Weather report, Wx Symbol
   DisplayWeatherIcon(840, 170);                  // Display weather icon (scale = Large)
@@ -1148,21 +1152,21 @@ String WindDegToOrdinalDirection(float winddirection) {
 }
 
 void DisplayTemperatureSection(int x, int y) {
-  // Temperature and Humidity (large)
+  // Layout grid (all positions relative to x, y):
+  //   x        x+150
+  //   |        |
+  // y | TEMP   | HUM%     ← Row 1: OpenSans24B
+  // y+40| min|max | UV n    ← Row 2: OpenSans12B
+
+  // Row 1: Temperature and Humidity
   setFont(OpenSans24B);
-  String tempStr = String(WxConditions[0].Temperature, 1) + "°";
-  String humStr = String(WxConditions[0].Humidity, 0) + "%";
-  drawString(x + 20, y, tempStr + "    " + humStr, LEFT);
+  drawString(x + 50, y, String(WxConditions[0].Temperature, 1) + "°", LEFT);
+  drawString(x + 220, y, String(WxConditions[0].Humidity, 0) + "%", LEFT);
 
-  // Min/Max centered below temperature, UV below humidity (same row)
+  // Row 2: Min|Max and UV Index
   setFont(OpenSans12B);
-  int tempCenterX = x + 75;   // Center below temperature (+20px right total)
-  int humCenterX = x + 220;   // Center below humidity
-  drawString(tempCenterX, y + 40, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER);
-
-  // UV Index below humidity (+10px right, +5px down)
-  String uvText = TXT_UV_INDEX + " " + String(WxConditions[0].UVIndex, 0);
-  drawString(humCenterX + 23, y + 45, uvText, CENTER);
+  drawString(x + 80, y + 45, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER);
+  drawString(x + 270, y + 50, TXT_UV_INDEX + " " + String(WxConditions[0].UVIndex, 0), CENTER);
 }
 
 void DisplayForecastTextSection(int x, int y) {
@@ -1183,7 +1187,7 @@ void DisplayForecastTextSection(int x, int y) {
   }
   String Line1 = Wx_Description.substring(0, Wx_Description.indexOf("~"));
   String Line2 = Wx_Description.substring(Wx_Description.indexOf("~") + 1);
-  drawString(x + 28, y + 10, TitleCase(Line1), LEFT);
+  drawString(x + 28, y + 5, TitleCase(Line1), LEFT);  // Line1 moved 5px up
   if (Line1 != Line2) drawString(x + 28, y + 35, Line2, LEFT);
 }
 
@@ -1434,9 +1438,9 @@ void DrawPressureAndTrend(int x, int y, float pressure, String slope) {
 
 void DisplayStatusSection(int x, int y, int rssi) {
   setFont(OpenSans10B);
-  // Layout: [Battery icon + text below] [SD icon] [WiFi signal]
-  DrawBattery(x + 180, y);          // Battery +100px to right
-  DrawSDCard(x + 263, y - 10);      // SD icon (2px up, 2px left)
+  // Layout: [SD icon] [Battery icon + text] [WiFi signal]
+  DrawSDCard(x + 175, y - 15);      // SD icon first (5px higher)
+  DrawBattery(x + 230, y);          // Battery second (+15px)
   DrawRSSI(x + 295, y + 15, rssi);  // WiFi signal (unchanged)
 }
 
@@ -2201,7 +2205,7 @@ void DisplayCurrentDetailScreen() {
   setFont(OpenSans24B);
   drawString(col1X, topY, String(WxConditions[0].Temperature, 1), RIGHT);
   setFont(OpenSans14B);
-  drawString(col1X, topY + 10, tempUnit, LEFT);
+  drawString(col1X + 5, topY + 10, tempUnit, LEFT);
   // Temperature trend arrow (compare current vs forecast)
   int tempArrowX = col1X + 65;
   if (WxConditions[0].Temperature < WxForecast[0].Temperature) {
@@ -2217,8 +2221,8 @@ void DisplayCurrentDetailScreen() {
     fillRect(tempArrowX - 10, arrowY - 3, 18, 6, Grey);  // Shaft horizontal
     fillTriangle(tempArrowX + 14, arrowY, tempArrowX + 4, arrowY - 8, tempArrowX + 4, arrowY + 8, Grey);  // Head
   }
-  setFont(OpenSans10B);
-  drawString(col1X - 25, topY + 45, TXT_MAX + " " + String(WxConditions[0].High, 0) + " / " + TXT_MIN + " " + String(WxConditions[0].Low, 0), CENTER);
+  setFont(OpenSans12B);
+  drawString(col1X - 25, topY + 50, TXT_MAX + " " + String(WxConditions[0].High, 0) + " / " + TXT_MIN + " " + String(WxConditions[0].Low, 0), CENTER);
 
   // Pressure - value large, unit small aligned at bottom
   setFont(OpenSans24B);
@@ -2226,7 +2230,7 @@ void DisplayCurrentDetailScreen() {
   String pressUnit = (Units == "M") ? "hPa" : "inHg";
   drawString(col2X, topY, String(pressValue, 0), RIGHT);
   setFont(OpenSans14B);
-  drawString(col2X, topY + 10, pressUnit, LEFT);
+  drawString(col2X + 5, topY + 10, pressUnit, LEFT);
   // Pressure trend arrow (using existing trend calculation)
   int pressArrowX = col2X + 75;
   if (WxConditions[0].Trend == "+") {
@@ -2242,14 +2246,14 @@ void DisplayCurrentDetailScreen() {
     fillRect(pressArrowX - 10, arrowY - 3, 18, 6, Grey);  // Shaft horizontal
     fillTriangle(pressArrowX + 14, arrowY, pressArrowX + 4, arrowY - 8, pressArrowX + 4, arrowY + 8, Grey);  // Head
   }
-  setFont(OpenSans10B);
-  drawString(col2X - 20, topY + 45, TXT_PRESSURE, CENTER);
+  setFont(OpenSans12B);
+  drawString(col2X - 20, topY + 50, TXT_PRESSURE, CENTER);
 
   // Humidity - value large, unit small aligned at bottom
   setFont(OpenSans24B);
   drawString(col3X, topY, String(WxConditions[0].Humidity, 0), RIGHT);
   setFont(OpenSans14B);
-  drawString(col3X, topY + 10, "%", LEFT);
+  drawString(col3X + 5, topY + 10, "%", LEFT);
   // Humidity trend arrow (compare current vs forecast)
   int humArrowX = col3X + 50;
   if (WxConditions[0].Humidity < WxForecast[0].Humidity) {
@@ -2265,8 +2269,8 @@ void DisplayCurrentDetailScreen() {
     fillRect(humArrowX - 10, arrowY - 3, 18, 6, Grey);  // Shaft horizontal
     fillTriangle(humArrowX + 14, arrowY, humArrowX + 4, arrowY - 8, humArrowX + 4, arrowY + 8, Grey);  // Head
   }
-  setFont(OpenSans10B);
-  drawString(col3X - 15, topY + 45, TXT_HUMIDITY, CENTER);
+  setFont(OpenSans12B);
+  drawString(col3X - 15, topY + 50, TXT_HUMIDITY, CENTER);
 
   // === MIDDLE SECTION: Weather Icon + Details ===
   drawFastHLine(50, 190, SCREEN_WIDTH - 100, Grey);
@@ -2294,7 +2298,7 @@ void DisplayCurrentDetailScreen() {
   setFont(OpenSans14B);  // Reduced from 18B
   float visKm = WxConditions[0].Visibility / 1000.0;
   String windDir = WindDegToOrdinalDirection(WxConditions[0].Winddir);
-  drawString(rightColValue, row1Y - 3, windDir + " " + String(WxConditions[0].Windspeed, 1) + ((Units == "M") ? " m/s" : " mph"), LEFT);
+  drawString(rightColValue, row1Y - 3, windDir + " - " + String(WxConditions[0].Windspeed, 1) + ((Units == "M") ? " m/s" : " mph"), LEFT);
   drawString(rightColValue, row2Y - 3, String(visKm, 1) + " km", LEFT);
 
   // UV Index with level description
@@ -2328,8 +2332,8 @@ void DisplayCurrentDetailScreen() {
   int aqiValY = 439;                  // AQI value raised 6px
 
   // Y positions for labels
-  int labelOffsetY = 28;              // Distance between value and label
-  int aqiLabelOffsetY = 40;           // Specific offset for AQI text (+10px)
+  int labelOffsetY = 33;              // Distance between value and label (+5px)
+  int aqiLabelOffsetY = 45;           // Specific offset for AQI text (+5px)
 
   // Values
   setFont(OpenSans16B);
@@ -2354,7 +2358,7 @@ void DisplayCurrentDetailScreen() {
   drawString(sunriseX, sunriseValY + labelOffsetY, TXT_SUNRISE, CENTER);
   drawString(sunsetX, sunsetValY + labelOffsetY, TXT_SUNSET, CENTER);
   drawString(rainX, rainValY + labelOffsetY, TXT_RAIN_PROB, CENTER);
-  drawString(aqiX, aqiValY + aqiLabelOffsetY, TXT_AQI + " ->", CENTER);
+  drawString(aqiX, aqiValY + aqiLabelOffsetY, TXT_AQI, CENTER);
 }
 
 // Screen: Air Quality Details
@@ -2456,150 +2460,8 @@ void DisplayAirQualityScreen() {
   drawString(centerX, uvY + 5, TXT_UV_INDEX + ": " + String(uv, 1) + uvLevel, CENTER);
 }
 
-// Screen: Monthly Calendar
-void DisplayCalendarScreen() {
-  // Get current time
-  time_t now = time(NULL);
-  struct tm *timeinfo = localtime(&now);
-  int todayDay = timeinfo->tm_mday;
-  int todayMonth = timeinfo->tm_mon;
-  int todayYear = timeinfo->tm_year + 1900;
-
-  // Apply month offset for navigation
-  int displayMonth = todayMonth + calendarMonthOffset;
-  int displayYear = todayYear;
-  while (displayMonth < 0) { displayMonth += 12; displayYear--; }
-  while (displayMonth > 11) { displayMonth -= 12; displayYear++; }
-
-  // Month names (multi-language would go here)
-  String monthNames[] = {"Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-                         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"};
-
-  // === HEADER ===
-  String title = monthNames[displayMonth] + " " + String(displayYear);
-
-  // Draw decorative header line
-  drawFastHLine(100, 65, SCREEN_WIDTH - 200, Black);
-  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
-
-  // Month/year title - large and centered
-  setFont(OpenSans24B);
-  drawString(SCREEN_WIDTH / 2, 25, title, CENTER);
-
-  // === NAVIGATION ARROWS ===
-  int arrowY = 42;
-  int arrowSize = 30;
-
-  // Left arrow (previous month) - double triangle pointing left
-  int leftArrowX = 120;
-  fillTriangle(leftArrowX, arrowY,
-               leftArrowX + arrowSize, arrowY - arrowSize/2,
-               leftArrowX + arrowSize, arrowY + arrowSize/2, Black);
-  fillTriangle(leftArrowX + 25, arrowY,
-               leftArrowX + arrowSize + 25, arrowY - arrowSize/2,
-               leftArrowX + arrowSize + 25, arrowY + arrowSize/2, Black);
-
-  // Right arrow (next month) - double triangle pointing right
-  int rightArrowX = SCREEN_WIDTH - 120;
-  fillTriangle(rightArrowX, arrowY,
-               rightArrowX - arrowSize, arrowY - arrowSize/2,
-               rightArrowX - arrowSize, arrowY + arrowSize/2, Black);
-  fillTriangle(rightArrowX - 25, arrowY,
-               rightArrowX - arrowSize - 25, arrowY - arrowSize/2,
-               rightArrowX - arrowSize - 25, arrowY + arrowSize/2, Black);
-
-  // === DAY HEADERS (Week starts Monday) ===
-  setFont(OpenSans12B);
-  String dayHeaders[] = {"LUN", "MAR", "MIE", "JUE", "VIE", "SAB", "DOM"};
-  int cellWidth = 125;
-  int cellHeight = 65;
-  int gridWidth = 7 * cellWidth;
-  int startX = (SCREEN_WIDTH - gridWidth) / 2;
-  int startY = 85;
-
-  // Header background
-  fillRect(startX, startY, gridWidth, 30, DarkGrey);
-
-  for (int i = 0; i < 7; i++) {
-    int x = startX + i * cellWidth + cellWidth / 2;
-    drawString(x, startY + 5, dayHeaders[i], CENTER);
-  }
-
-  // === GRID LINES ===
-  // Horizontal lines
-  for (int i = 0; i <= 6; i++) {
-    int y = startY + 30 + i * cellHeight;
-    drawFastHLine(startX, y, gridWidth, Grey);
-  }
-  // Vertical lines
-  for (int i = 0; i <= 7; i++) {
-    int x = startX + i * cellWidth;
-    for (int y = startY; y < startY + 30 + 6 * cellHeight; y++) {
-      if ((y - startY) % 3 == 0) // Dashed effect
-        epd_draw_pixel(x, y, Grey, framebuffer);
-    }
-  }
-
-  // === CALCULATE CALENDAR ===
-  struct tm firstDay = {0};
-  firstDay.tm_year = displayYear - 1900;
-  firstDay.tm_mon = displayMonth;
-  firstDay.tm_mday = 1;
-  firstDay.tm_hour = 12;
-  mktime(&firstDay);
-  // Convert from Sunday=0 to Monday=0 system
-  int firstDayOfWeek = (firstDay.tm_wday + 6) % 7;
-
-  int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  if (displayMonth == 1 && ((displayYear % 4 == 0 && displayYear % 100 != 0) || displayYear % 400 == 0)) {
-    daysInMonth[1] = 29;
-  }
-  int numDays = daysInMonth[displayMonth];
-
-  // === DRAW DAYS ===
-  int day = 1;
-  bool isCurrentMonth = (displayMonth == todayMonth && displayYear == todayYear);
-
-  for (int week = 0; week < 6 && day <= numDays; week++) {
-    int y = startY + 30 + week * cellHeight + cellHeight / 2;
-
-    for (int dow = 0; dow < 7; dow++) {
-      if (week == 0 && dow < firstDayOfWeek) continue;
-      if (day > numDays) break;
-
-      int x = startX + dow * cellWidth + cellWidth / 2;
-      int cellY = startY + 30 + week * cellHeight;
-
-      // Highlight today with inverted colors (white on black)
-      if (isCurrentMonth && day == todayDay) {
-        int boxSize = 48;
-        fillRect(x - boxSize/2, cellY + 4, boxSize, boxSize, Black);
-        setFont(OpenSans24B);
-        // Draw day number - will appear lighter on dark background
-        drawString(x, cellY + 8, String(day), CENTER);
-      } else {
-        // Sunday (now position 6) in darker grey
-        setFont(OpenSans18B);
-        if (dow == 6) { // Sunday
-          drawString(x, cellY + 14, String(day), CENTER);
-        } else if (dow == 5) { // Saturday
-          drawString(x, cellY + 14, String(day), CENTER);
-        } else {
-          drawString(x, cellY + 14, String(day), CENTER);
-        }
-      }
-      day++;
-    }
-  }
-
-  // === FOOTER ===
-  setFont(OpenSans10B);
-  if (calendarMonthOffset != 0) {
-    drawString(SCREEN_WIDTH / 2, 505, "< Mes anterior | Tocar centro para volver | Mes siguiente >", CENTER);
-  } else {
-    drawString(SCREEN_WIDTH / 2, 505, "< > Cambiar mes | Tocar centro para volver", CENTER);
-  }
-}
+// Calendar screens moved to calendar.h
+// (DisplayCalendarScreen and DisplayCalendarYearScreen are in calendar.h)
 
 // Screen 3: Extended forecast
 void DisplayForecastScreen() {
@@ -2747,13 +2609,18 @@ void DisplayGraphsScreen() {
 
 // Screen 5: System Information
 void DisplayInfoScreen() {
-  // Date/Time same format and position as main screen
-  drawScreenHeader();
 
   // Title
   setFont(OpenSans18B);
-  drawString(SCREEN_WIDTH / 2, 50, TXT_SYSTEM_INFO, CENTER);
-  drawFastHLine(150, 85, SCREEN_WIDTH - 300, Grey);
+  drawString(SCREEN_WIDTH / 2, 35, TXT_SYSTEM_INFO, CENTER);
+  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
+  drawFastHLine(100, 70, SCREEN_WIDTH - 200, Grey);
+
+  // Page indicator
+  setFont(OpenSans10B);
+  drawString(SCREEN_WIDTH / 2, 515, "0 / 4", CENTER);
+
+  drawInfoNavArrow(50);
 
   int col1X = 50;    // Labels left
   int col2X = 230;   // Values left
@@ -2850,12 +2717,363 @@ void DisplayInfoScreen() {
   }
   drawString(SCREEN_WIDTH/2, btnY + 8, TXT_CLEAN_SCREEN, CENTER);
 
+  // Right arrow (next page - Features) - like calendar arrows
+  int arrowY = 50;
+  int arrowSize = 25;
+  int rightArrowX = SCREEN_WIDTH - 60;
+  fillTriangle(rightArrowX, arrowY,
+               rightArrowX - arrowSize, arrowY - arrowSize/2,
+               rightArrowX - arrowSize, arrowY + arrowSize/2, Black);
+  fillTriangle(rightArrowX - 20, arrowY,
+               rightArrowX - arrowSize - 20, arrowY - arrowSize/2,
+               rightArrowX - arrowSize - 20, arrowY + arrowSize/2, Black);
+
   // Footer - Uptime
   setFont(OpenSans8B);
   unsigned long uptime = millis() / 1000;
   int uptimeMin = (uptime / 60) % 60;
   int uptimeSec = uptime % 60;
   drawString(SCREEN_WIDTH / 2, 515, TXT_UPTIME + " " + String(uptimeMin) + "m " + String(uptimeSec) + "s", CENTER);
+}
+
+// Screen: Features/Specifications
+// Helper function to draw navigation arrow
+void drawInfoNavArrow(int arrowY) {
+  int arrowSize = 25;
+  int rightArrowX = SCREEN_WIDTH - 60;
+  fillTriangle(rightArrowX, arrowY,
+               rightArrowX - arrowSize, arrowY - arrowSize/2,
+               rightArrowX - arrowSize, arrowY + arrowSize/2, Black);
+  fillTriangle(rightArrowX - 20, arrowY,
+               rightArrowX - arrowSize - 20, arrowY - arrowSize/2,
+               rightArrowX - arrowSize - 20, arrowY + arrowSize/2, Black);
+}
+
+// Screen: Features 1/2 - Hardware
+void DisplayInfoFeatures1Screen() {
+
+  // Title
+  setFont(OpenSans18B);
+  drawString(SCREEN_WIDTH / 2, 35, "Caracteristicas - Hardware", CENTER);
+  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
+  drawFastHLine(100, 70, SCREEN_WIDTH - 200, Grey);
+
+  // Page indicator
+  setFont(OpenSans10B);
+  drawString(SCREEN_WIDTH / 2, 515, "1 / 4", CENTER);
+
+  drawInfoNavArrow(50);
+
+  int y = 90;
+  int lineH = 26;
+  int col1 = 50;
+  int col2 = 530;
+
+  setFont(OpenSans10B);
+
+  // Left column
+  drawString(col1, y, "Microcontrolador: ESP32-S3", LEFT);
+  y += lineH;
+  drawString(col1, y, "CPU: Dual-core Xtensa LX7 @ 240MHz", LEFT);
+  y += lineH;
+  drawString(col1, y, "Memoria Flash: 16 MB", LEFT);
+  y += lineH;
+  drawString(col1, y, "PSRAM: 8 MB OPI", LEFT);
+  y += lineH;
+  drawString(col1, y, "WiFi: 802.11 b/g/n 2.4GHz", LEFT);
+  y += lineH;
+  drawString(col1, y, "Bluetooth: BLE 5.0 (disponible)", LEFT);
+  y += lineH;
+  drawString(col1, y, "Consumo Activo: ~150mA", LEFT);
+  y += lineH;
+  drawString(col1, y, "Consumo Deep Sleep: ~10uA", LEFT);
+
+  // Right column
+  y = 90;
+  drawString(col2, y, "Pantalla: E-Paper 4.7\"", LEFT);
+  y += lineH;
+  drawString(col2, y, "Resolucion: 960 x 540 px", LEFT);
+  y += lineH;
+  drawString(col2, y, "Colores: 16 niveles gris", LEFT);
+  y += lineH;
+  drawString(col2, y, "Touch: GT911 Capacitivo I2C", LEFT);
+  y += lineH;
+  drawString(col2, y, "Bateria: LiPo 3.7V (3.2-4.2V)", LEFT);
+  y += lineH;
+  drawString(col2, y, "MicroSD: SPI FAT32/exFAT", LEFT);
+  y += lineH;
+  drawString(col2, y, "Tiempo refresco: ~0.5 seg", LEFT);
+  y += lineH;
+  drawString(col2, y, "Angulo vision: ~180 grados", LEFT);
+
+  // Footer
+  setFont(OpenSans8B);
+  drawFastHLine(100, 500, SCREEN_WIDTH - 200, Grey);
+}
+
+// Screen: Features 2/2 - Software & API
+void DisplayInfoFeatures2Screen() {
+
+  // Title
+  setFont(OpenSans18B);
+  drawString(SCREEN_WIDTH / 2, 35, "Caracteristicas - Software", CENTER);
+  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
+  drawFastHLine(100, 70, SCREEN_WIDTH - 200, Grey);
+
+  // Page indicator
+  setFont(OpenSans10B);
+  drawString(SCREEN_WIDTH / 2, 515, "2 / 4", CENTER);
+
+  drawInfoNavArrow(50);
+
+  int y = 90;
+  int lineH = 26;
+  int col1 = 50;
+  int col2 = 530;
+
+  setFont(OpenSans10B);
+
+  // Left column - Software
+  drawString(col1, y, "Pantallas: 13 navegables", LEFT);
+  y += lineH;
+  drawString(col1, y, "Idiomas: ES / EN / FR", LEFT);
+  y += lineH;
+  drawString(col1, y, "Multi-WiFi: Hasta 3 redes", LEFT);
+  y += lineH;
+  drawString(col1, y, "Historial SD: ~1 año de datos", LEFT);
+  y += lineH;
+  drawString(col1, y, "Historial Int: ~7 dias (FFat)", LEFT);
+  y += lineH;
+  drawString(col1, y, "Actualizacion: 5-120 min config.", LEFT);
+  y += lineH;
+  drawString(col1, y, "Modo AP: WeatherStation-Setup", LEFT);
+  y += lineH;
+  drawString(col1, y, "Portal: http://192.168.4.1", LEFT);
+
+  // Right column - API
+  y = 90;
+  drawString(col2, y, "API: OpenWeatherMap", LEFT);
+  y += lineH;
+  drawString(col2, y, "Clima: /weather", LEFT);
+  y += lineH;
+  drawString(col2, y, "Pronostico: /forecast 5d/3h", LEFT);
+  y += lineH;
+  drawString(col2, y, "UV Index: /uvi", LEFT);
+  y += lineH;
+  drawString(col2, y, "Calidad Aire: /air_pollution", LEFT);
+  y += lineH;
+  drawString(col2, y, "Limite gratis: 1M llamadas/mes", LEFT);
+  y += lineH;
+  drawString(col2, y, "Password: weather123", LEFT);
+  y += lineH;
+  drawString(col2, y, "Almacenamiento: NVS Preferences", LEFT);
+}
+
+// Screen: Quick Help
+void DisplayInfoHelpScreen() {
+
+  // Title
+  setFont(OpenSans18B);
+  drawString(SCREEN_WIDTH / 2, 35, "Ayuda Rapida", CENTER);
+  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
+  drawFastHLine(100, 70, SCREEN_WIDTH - 200, Grey);
+
+  // Page indicator
+  setFont(OpenSans10B);
+  drawString(SCREEN_WIDTH / 2, 515, "3 / 4", CENTER);
+
+  drawInfoNavArrow(50);
+
+  int y = 90;
+  int lineH = 26;
+  int col1 = 50;
+  int col2 = 530;
+
+  setFont(OpenSans12B);
+
+  // Navigation tips
+  drawString(col1, y, "Navegacion", LEFT);
+  drawFastHLine(col1, y + 18, 150, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col1, y, "* Zona superior central: Condiciones actuales", LEFT);
+  y += lineH;
+  drawString(col1, y, "* Iconos pronostico: Pronostico extendido", LEFT);
+  y += lineH;
+  drawString(col1, y, "* Graficas izquierda: Historial real", LEFT);
+  y += lineH;
+  drawString(col1, y, "* Graficas derecha: Tendencias futuras", LEFT);
+  y += lineH;
+  drawString(col1, y, "* Bateria/WiFi: Esta pantalla", LEFT);
+  y += lineH;
+  drawString(col1, y, "* Luna/Sol: Calendario", LEFT);
+  y += lineH + 10;
+
+  // Config tips
+  setFont(OpenSans12B);
+  drawString(col1, y, "Configuracion Inicial", LEFT);
+  drawFastHLine(col1, y + 18, 230, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col1, y, "1. Conectar a WiFi: WeatherStation-Setup", LEFT);
+  y += lineH;
+  drawString(col1, y, "2. Abrir: http://192.168.4.1", LEFT);
+  y += lineH;
+  drawString(col1, y, "3. Configurar WiFi, API Key, ubicacion", LEFT);
+  y += lineH;
+  drawString(col1, y, "4. Guardar y reiniciar", LEFT);
+  y += lineH + 10;
+
+  // Right column - Troubleshooting
+  y = 90;
+
+  setFont(OpenSans12B);
+  drawString(col2, y, "Solucion de Problemas", LEFT);
+  drawFastHLine(col2, y + 18, 250, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col2, y, "Sin WiFi: Verifica SSID y password", LEFT);
+  y += lineH;
+  drawString(col2, y, "Sin datos: Verifica API Key", LEFT);
+  y += lineH;
+  drawString(col2, y, "Ghosting: Usa boton Limpiar", LEFT);
+  y += lineH;
+  drawString(col2, y, "Touch falla: Limpia pantalla", LEFT);
+  y += lineH + 10;
+
+  setFont(OpenSans12B);
+  drawString(col2, y, "MODO BOOTLOADER", LEFT);
+  drawFastHLine(col2, y + 18, 200, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col2, y, "1. Mantener BOOT presionado", LEFT);
+  y += lineH;
+  drawString(col2, y, "2. Presionar RST", LEFT);
+  y += lineH;
+  drawString(col2, y, "3. Soltar RST, luego BOOT", LEFT);
+  y += lineH;
+  drawString(col2, y, "4. Cargar firmware", LEFT);
+
+  // Footer
+  setFont(OpenSans8B);
+  drawFastHLine(100, 500, SCREEN_WIDTH - 200, Grey);
+}
+
+// Screen: Credits with QR codes
+void DisplayInfoCreditsScreen() {
+
+  // Title
+  setFont(OpenSans18B);
+  drawString(SCREEN_WIDTH / 2, 35, "Creditos", CENTER);
+  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
+  drawFastHLine(100, 70, SCREEN_WIDTH - 200, Grey);
+
+  // Page indicator
+  setFont(OpenSans10B);
+  drawString(SCREEN_WIDTH / 2, 515, "4 / 4", CENTER);
+
+  drawInfoNavArrow(50);
+
+  int col1 = 50;
+  int col2 = 530;
+  int y = 90;
+  int lineH = 22;
+
+  // Left column - Original author (required by license)
+  setFont(OpenSans12B);
+  drawString(col1, y, "Autor Original", LEFT);
+  drawFastHLine(col1, y + 18, 180, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col1, y, "David Bird (G6EJD)", LEFT);
+  y += lineH;
+  drawString(col1, y, "ESP32 e-Paper Weather Display", LEFT);
+  y += lineH;
+  drawString(col1, y, "Copyright 2014-2021", LEFT);
+  y += lineH;
+  drawString(col1, y, "github.com/G6EJD", LEFT);
+  y += lineH + 10;
+
+  // Adaptations chain
+  setFont(OpenSans12B);
+  drawString(col1, y, "Adaptaciones", LEFT);
+  drawFastHLine(col1, y + 18, 170, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col1, y, "markbirss - Adaptacion LilyGo EPD", LEFT);
+  y += lineH;
+  drawString(col1, y, "Xinyuan-LilyGO - Fork oficial", LEFT);
+  y += lineH;
+  drawString(col1, y, "Stefan Maetschke 2025 - makerguides.com", LEFT);
+  y += lineH + 10;
+
+  setFont(OpenSans12B);
+  drawString(col1, y, "Modificaciones XE1E 2026", LEFT);
+  drawFastHLine(col1, y + 18, 310, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col1, y, "* Navegacion tactil 13 pantallas", LEFT);
+  y += lineH;
+  drawString(col1, y, "* Multi-idioma ES/EN/FR", LEFT);
+  y += lineH;
+  drawString(col1, y, "* Portal cautivo y config web", LEFT);
+  y += lineH;
+  drawString(col1, y, "* Historial SD Card + FFat", LEFT);
+  y += lineH;
+  drawString(col1, y, "* UV Index y Calidad del Aire", LEFT);
+  y += lineH;
+  drawString(col1, y, "* Calendario mensual y anual", LEFT);
+
+  // Right column
+  y = 90;
+
+  setFont(OpenSans12B);
+  drawString(col2, y, "Hardware", LEFT);
+  drawFastHLine(col2, y + 18, 120, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col2, y, "LilyGo T5 4.7\" S3 EPD", LEFT);
+  y += lineH + 10;
+
+  setFont(OpenSans12B);
+  drawString(col2, y, "Librerias", LEFT);
+  drawFastHLine(col2, y + 18, 120, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col2, y, "* EPD47 - LilyGO/DFRobot", LEFT);
+  y += lineH;
+  drawString(col2, y, "* ArduinoJson - B. Blanchon", LEFT);
+  y += lineH;
+  drawString(col2, y, "* ESP32 Arduino - Espressif", LEFT);
+  y += lineH + 10;
+
+  setFont(OpenSans12B);
+  drawString(col2, y, "Enlaces", LEFT);
+  drawFastHLine(col2, y + 18, 100, Grey);
+  y += 28;
+
+  setFont(OpenSans10B);
+  drawString(col2, y, "github.com/xe1e", LEFT);
+  y += lineH + 10;
+
+  // QR Code placeholder
+  setFont(OpenSans10B);
+  drawString(col2 + 100, y + 20, "[ QR ]", CENTER);
+  drawString(col2 + 100, y + 42, "Manual", CENTER);
+  drawRect(col2 + 45, y, 110, 70, Black);
+
+  // License notice (required by original license)
+  setFont(OpenSans10B);
+  drawString(col1, 485, "Solo uso personal, no comercial. Original: David Bird (G6EJD) - Ver Licence.txt", LEFT);
 }
 
 // Screen 6: Weather History (real recorded data)
