@@ -773,12 +773,14 @@ Cada valor principal (temperatura, presion, humedad) incluye una flecha indicand
 
 **Acceso**: Tocar la esquina superior derecha (zona bateria/WiFi).
 
+La seccion de Informacion consta de **5 sub-pantallas navegables** (0/4 a 4/4). Usar las flechas de navegacion en la esquina superior derecha para avanzar entre ellas.
+
+#### 7.6.1 Configuracion del Sistema (0/4)
+
 ```
 +-----------------------------------------------+
-|  [Fecha]  @ [Hora]                            |
-+-----------------------------------------------+
-|          INFORMACION DEL SISTEMA              |
-+-----------------------------------------------+
+|       CONFIGURACION DEL SISTEMA          >>   |
++===============================================+
 | Version: v2.0      | Idioma: Espanol          |
 | Compilado: Mar 2026| Unidades: Metrico        |
 | Free Heap: 245 KB  | Hemisferio: Norte        |
@@ -795,11 +797,9 @@ Cada valor principal (temperatura, presion, humedad) incluye una flecha indicand
 +-----------------------------------------------+
 |          [LIMPIAR PANTALLA]                   |
 +-----------------------------------------------+
-|            Uptime: 5m 32s                     |
+|                   0 / 4                       |
 +-----------------------------------------------+
 ```
-
-#### Informacion mostrada
 
 | Columna Izquierda | Columna Derecha |
 |-------------------|-----------------|
@@ -815,9 +815,111 @@ Cada valor principal (temperatura, presion, humedad) incluye una flecha indicand
 | Coordenadas | |
 | Zona horaria | |
 
-#### Boton Limpiar Pantalla
+**Boton Limpiar Pantalla**: Ejecuta ciclo de limpieza del display para eliminar ghosting.
 
-Tocar el boton **[LIMPIAR PANTALLA]** ejecuta un ciclo de limpieza del display e-paper para eliminar el ghosting (imagenes residuales). Util cuando se notan sombras de pantallas anteriores.
+#### 7.6.2 Caracteristicas - Hardware (1/4)
+
+```
++-----------------------------------------------+
+|       CARACTERISTICAS - HARDWARE         >>   |
++===============================================+
+| Microcontrolador: ESP32-S3  | Pantalla: E-Paper 4.7"   |
+| CPU: Dual-core @ 240MHz     | Resolucion: 960x540 px   |
+| Memoria Flash: 16 MB        | Colores: 16 niveles gris |
+| PSRAM: 8 MB OPI             | Tiempo refresco: ~0.5 seg|
+|                             | Angulo vision: ~180 grados|
+| WiFi: 802.11 b/g/n 2.4GHz   | Touch: GT911 Capacitivo  |
+| Bluetooth: BLE 5.0          |                          |
+|                             | Bateria: LiPo 3.7V       |
+| Consumo Activo: ~150mA      | MicroSD: SPI FAT32/exFAT |
+| Consumo Deep Sleep: ~10uA   |                          |
++-----------------------------------------------+
+|                   1 / 4                       |
++-----------------------------------------------+
+```
+
+#### 7.6.3 Caracteristicas - Software (2/4)
+
+```
++-----------------------------------------------+
+|       CARACTERISTICAS - SOFTWARE         >>   |
++===============================================+
+| Pantallas: 13 navegables    | API: OpenWeatherMap      |
+| Multi-WiFi: Hasta 3 redes   |                          |
+| Historial SD: ~1 año datos  | Clima: /weather          |
+| Historial Int: ~7 dias FFat | Pronostico: /forecast    |
+| Actualizacion: 5-120 min    | UV Index: /uvi           |
+| Idiomas: ES / EN / FR       | Calidad Aire: /air_poll  |
+|                             |                          |
+| Modo AP: WeatherStation-Setup| Limite: 1M llamadas/mes |
+| Portal: http://192.168.4.1  |                          |
+| Password: weather123        | Almacen: NVS Preferences |
++-----------------------------------------------+
+|                   2 / 4                       |
++-----------------------------------------------+
+```
+
+#### 7.6.4 Ayuda Rapida (3/4)
+
+```
++-----------------------------------------------+
+|            AYUDA RAPIDA                  >>   |
++===============================================+
+| Navegacion - (touch)        | Solucion de Problemas    |
+| ----------------------      | ------------------------ |
+| * Zona superior: Condiciones| Sin WiFi: Verifica SSID  |
+| * Iconos: Pronostico extend.| Sin datos: Verifica API  |
+| * Graficas izq: Historial   | Ghosting: Boton Limpiar  |
+| * Graficas der: Tendencias  | Touch falla: Limpia pant |
+| * Bateria/WiFi: Esta pant.  |                          |
+| * Luna/Sol: Calendario      |                          |
+|   (touch largo)             | MODO BOOTLOADER          |
+|                             | ------------------------ |
+| Configuracion Inicial       | 1. Mantener BOOT         |
+| ----------------------      | 2. Presionar RST         |
+| 1. Conectar: WeatherStation | 3. Soltar RST, luego BOOT|
+| 2. Abrir: 192.168.4.1       | 4. Cargar firmware       |
+| 3. Configurar WiFi, API, ubi|                          |
+| 4. Configurar demas params  |                          |
+| 5. Guardar y reiniciar      |                          |
++-----------------------------------------------+
+|                   3 / 4                       |
++-----------------------------------------------+
+```
+
+#### 7.6.5 Creditos (4/4)
+
+```
++-----------------------------------------------+
+|              CREDITOS                    >>   |
++===============================================+
+| Autor Original              | Hardware                 |
+| ----------------------      | ------------------------ |
+| David Bird (G6EJD)          | LilyGo T5 4.7" S3 EPD    |
+| ESP32 e-Paper Weather       |   touch                  |
+| Copyright 2014-2021         |                          |
+| github.com/G6EJD            | Librerias                |
+|                             | ------------------------ |
+| Adaptaciones                | * EPD47 - LilyGO/DFRobot |
+| ----------------------      | * ArduinoJson            |
+| markbirss - LilyGo EPD      | * ESP32 Arduino          |
+| Xinyuan-LilyGO - Fork       |                          |
+| Stefan Maetschke 2025       | Enlaces                  |
+|                             | ------------------------ |
+| Modificaciones XE1E 2026    | github.com/xe1e          |
+| ----------------------      |                          |
+| * Navegacion tactil 13 pant |    +-------+             |
+| * Multi-idioma ES/EN/FR     |    | QR    |             |
+| * Portal cautivo y web      |    | CODE  |             |
+| * Historial SD + FFat       |    +-------+             |
+| * UV Index y Calidad Aire   |                          |
+| * Calendario mensual/anual  |                          |
++-----------------------------------------------+
+| Solo uso personal. Original: David Bird - Licence.txt |
++-----------------------------------------------+
+```
+
+El codigo QR enlaza a github.com/xe1e para acceso rapido al repositorio.
 
 ### 7.7 Pantalla 5: Historial de Datos
 

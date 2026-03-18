@@ -21,7 +21,8 @@ enum ScreenState {
   SCREEN_INFO_FEATURES1,
   SCREEN_INFO_FEATURES2,
   SCREEN_INFO_HELP,
-  SCREEN_INFO_CREDITS
+  SCREEN_INFO_CREDITS,
+  SCREEN_CALLSIGN
 };
 
 // Touch zone structure
@@ -295,9 +296,20 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
       Serial.println(">>> Credits next arrow - going to Info");
       return SCREEN_INFO;
     }
+    // QR Code zone - go to Callsign screen (X 520-680, Y 0-120 in touch coords - bottom of screen)
+    if (touchX >= 520 && touchX <= 680 && touchY >= 0 && touchY <= 120) {
+      Serial.println(">>> QR Code touched - going to Callsign screen");
+      return SCREEN_CALLSIGN;
+    }
     // Any other touch returns to Info
     Serial.println(">>> Touch on CREDITS - returning to Info");
     return SCREEN_INFO;
+  }
+
+  // Special handling for CALLSIGN screen - any touch returns to Credits
+  if (currentState == SCREEN_CALLSIGN) {
+    Serial.println(">>> Touch on CALLSIGN - returning to Credits");
+    return SCREEN_INFO_CREDITS;
   }
 
   // Special handling for HISTORY screen - toggle zone at top right

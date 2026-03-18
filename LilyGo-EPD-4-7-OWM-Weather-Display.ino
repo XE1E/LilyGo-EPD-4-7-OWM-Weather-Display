@@ -1,3 +1,5 @@
+#include <qrcode.h>
+
 // ESP32 Weather Display and a LilyGo EPD 4.7" Display, obtains Open Weather Map data, decodes and then displays it.
 // This software, the ideas and concepts is Copyright (c) David Bird 2021. All rights to this software are reserved.
 // Mods by XE1E
@@ -65,7 +67,7 @@ bool sdCardAvailable = false;
 #define SCREEN_HEIGHT  EPD_HEIGHT
 
 //################  VERSION  ##################################################
-String version = "2.5 / 4.7in";  // Programme version, see change log at end
+String version = "2.8 / 4.7in";  // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 enum alignment {LEFT, RIGHT, CENTER};
@@ -169,6 +171,8 @@ void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color);
 void drawFastVLine(int16_t x0, int16_t y0, int length, uint16_t color);
 void setFont(GFXfont const &font);
 void edp_update();
+#include "qr_codes.h"
+#include "callsign.h"
 
 GFXfont  currentFont;
 uint8_t *framebuffer;
@@ -381,6 +385,7 @@ void drawCurrentScreen() {
     case SCREEN_INFO_FEATURES2: DisplayInfoFeatures2Screen(); break;
     case SCREEN_INFO_HELP:      DisplayInfoHelpScreen(); break;
     case SCREEN_INFO_CREDITS:   DisplayInfoCreditsScreen(); break;
+    case SCREEN_CALLSIGN:       DisplayCallsignScreen(); break;
   }
 }
 
@@ -1160,13 +1165,13 @@ void DisplayTemperatureSection(int x, int y) {
 
   // Row 1: Temperature and Humidity
   setFont(OpenSans24B);
-  drawString(x + 50, y, String(WxConditions[0].Temperature, 1) + "°", LEFT);
-  drawString(x + 220, y, String(WxConditions[0].Humidity, 0) + "%", LEFT);
+  drawString(x + 80, y, String(WxConditions[0].Temperature, 1) + "°", LEFT);
+  drawString(x + 250, y, String(WxConditions[0].Humidity, 0) + "%", LEFT);
 
   // Row 2: Min|Max and UV Index
   setFont(OpenSans12B);
-  drawString(x + 80, y + 45, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER);
-  drawString(x + 270, y + 50, TXT_UV_INDEX + " " + String(WxConditions[0].UVIndex, 0), CENTER);
+  drawString(x + 130, y + 45, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER);
+  drawString(x + 300, y + 50, TXT_UV_INDEX + " " + String(WxConditions[0].UVIndex, 0), CENTER);
 }
 
 void DisplayForecastTextSection(int x, int y) {
@@ -2162,6 +2167,8 @@ void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) {
   epd_fill_rect(x, y, w, h, color, framebuffer);
 }
 
+// drawQRCode moved to qr_codes.h
+
 void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
                   int16_t x2, int16_t y2, uint16_t color) {
   epd_fill_triangle(x0, y0, x1, y1, x2, y2, color, framebuffer);
@@ -2728,12 +2735,6 @@ void DisplayInfoScreen() {
                rightArrowX - arrowSize - 20, arrowY - arrowSize/2,
                rightArrowX - arrowSize - 20, arrowY + arrowSize/2, Black);
 
-  // Footer - Uptime
-  setFont(OpenSans8B);
-  unsigned long uptime = millis() / 1000;
-  int uptimeMin = (uptime / 60) % 60;
-  int uptimeSec = uptime % 60;
-  drawString(SCREEN_WIDTH / 2, 515, TXT_UPTIME + " " + String(uptimeMin) + "m " + String(uptimeSec) + "s", CENTER);
 }
 
 // Screen: Features/Specifications
@@ -2754,9 +2755,9 @@ void DisplayInfoFeatures1Screen() {
 
   // Title
   setFont(OpenSans18B);
-  drawString(SCREEN_WIDTH / 2, 35, "Caracteristicas - Hardware", CENTER);
-  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
-  drawFastHLine(100, 70, SCREEN_WIDTH - 200, Grey);
+  drawString(SCREEN_WIDTH / 2, 35, TXT_INFO_HARDWARE, CENTER);
+  drawFastHLine(100, 87, SCREEN_WIDTH - 200, Black);
+  drawFastHLine(100, 90, SCREEN_WIDTH - 200, Grey);
 
   // Page indicator
   setFont(OpenSans10B);
@@ -2764,7 +2765,7 @@ void DisplayInfoFeatures1Screen() {
 
   drawInfoNavArrow(50);
 
-  int y = 90;
+  int y = 120;
   int lineH = 26;
   int col1 = 50;
   int col2 = 530;
@@ -2779,32 +2780,32 @@ void DisplayInfoFeatures1Screen() {
   drawString(col1, y, "Memoria Flash: 16 MB", LEFT);
   y += lineH;
   drawString(col1, y, "PSRAM: 8 MB OPI", LEFT);
-  y += lineH;
+  y += lineH * 2;
   drawString(col1, y, "WiFi: 802.11 b/g/n 2.4GHz", LEFT);
   y += lineH;
   drawString(col1, y, "Bluetooth: BLE 5.0 (disponible)", LEFT);
-  y += lineH;
+  y += lineH * 2;
   drawString(col1, y, "Consumo Activo: ~150mA", LEFT);
   y += lineH;
   drawString(col1, y, "Consumo Deep Sleep: ~10uA", LEFT);
 
   // Right column
-  y = 90;
+  y = 120;
   drawString(col2, y, "Pantalla: E-Paper 4.7\"", LEFT);
   y += lineH;
   drawString(col2, y, "Resolucion: 960 x 540 px", LEFT);
   y += lineH;
   drawString(col2, y, "Colores: 16 niveles gris", LEFT);
   y += lineH;
-  drawString(col2, y, "Touch: GT911 Capacitivo I2C", LEFT);
-  y += lineH;
-  drawString(col2, y, "Bateria: LiPo 3.7V (3.2-4.2V)", LEFT);
-  y += lineH;
-  drawString(col2, y, "MicroSD: SPI FAT32/exFAT", LEFT);
-  y += lineH;
   drawString(col2, y, "Tiempo refresco: ~0.5 seg", LEFT);
   y += lineH;
   drawString(col2, y, "Angulo vision: ~180 grados", LEFT);
+  y += lineH;
+  drawString(col2, y, "Touch: GT911 Capacitivo I2C", LEFT);
+  y += lineH * 2;
+  drawString(col2, y, "Bateria: LiPo 3.7V (3.2-4.2V)", LEFT);
+  y += lineH;
+  drawString(col2, y, "MicroSD: SPI FAT32/exFAT", LEFT);
 
   // Footer
   setFont(OpenSans8B);
@@ -2816,9 +2817,9 @@ void DisplayInfoFeatures2Screen() {
 
   // Title
   setFont(OpenSans18B);
-  drawString(SCREEN_WIDTH / 2, 35, "Caracteristicas - Software", CENTER);
-  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
-  drawFastHLine(100, 70, SCREEN_WIDTH - 200, Grey);
+  drawString(SCREEN_WIDTH / 2, 35, TXT_INFO_SOFTWARE, CENTER);
+  drawFastHLine(100, 87, SCREEN_WIDTH - 200, Black);
+  drawFastHLine(100, 90, SCREEN_WIDTH - 200, Grey);
 
   // Page indicator
   setFont(OpenSans10B);
@@ -2826,7 +2827,7 @@ void DisplayInfoFeatures2Screen() {
 
   drawInfoNavArrow(50);
 
-  int y = 90;
+  int y = 120;
   int lineH = 26;
   int col1 = 50;
   int col2 = 530;
@@ -2836,8 +2837,6 @@ void DisplayInfoFeatures2Screen() {
   // Left column - Software
   drawString(col1, y, "Pantallas: 13 navegables", LEFT);
   y += lineH;
-  drawString(col1, y, "Idiomas: ES / EN / FR", LEFT);
-  y += lineH;
   drawString(col1, y, "Multi-WiFi: Hasta 3 redes", LEFT);
   y += lineH;
   drawString(col1, y, "Historial SD: ~1 año de datos", LEFT);
@@ -2846,14 +2845,18 @@ void DisplayInfoFeatures2Screen() {
   y += lineH;
   drawString(col1, y, "Actualizacion: 5-120 min config.", LEFT);
   y += lineH;
+  drawString(col1, y, "Idiomas: ES / EN / FR", LEFT);
+  y += lineH * 2;
   drawString(col1, y, "Modo AP: WeatherStation-Setup", LEFT);
   y += lineH;
   drawString(col1, y, "Portal: http://192.168.4.1", LEFT);
+  y += lineH;
+  drawString(col1, y, "Password: weather123", LEFT);
 
   // Right column - API
-  y = 90;
+  y = 120;
   drawString(col2, y, "API: OpenWeatherMap", LEFT);
-  y += lineH;
+  y += lineH * 2;
   drawString(col2, y, "Clima: /weather", LEFT);
   y += lineH;
   drawString(col2, y, "Pronostico: /forecast 5d/3h", LEFT);
@@ -2861,12 +2864,14 @@ void DisplayInfoFeatures2Screen() {
   drawString(col2, y, "UV Index: /uvi", LEFT);
   y += lineH;
   drawString(col2, y, "Calidad Aire: /air_pollution", LEFT);
-  y += lineH;
+  y += lineH * 2;
   drawString(col2, y, "Limite gratis: 1M llamadas/mes", LEFT);
-  y += lineH;
-  drawString(col2, y, "Password: weather123", LEFT);
-  y += lineH;
+  y += lineH * 2;
   drawString(col2, y, "Almacenamiento: NVS Preferences", LEFT);
+
+  // Footer
+  setFont(OpenSans8B);
+  drawFastHLine(100, 500, SCREEN_WIDTH - 200, Grey);
 }
 
 // Screen: Quick Help
@@ -2874,9 +2879,9 @@ void DisplayInfoHelpScreen() {
 
   // Title
   setFont(OpenSans18B);
-  drawString(SCREEN_WIDTH / 2, 35, "Ayuda Rapida", CENTER);
-  drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
-  drawFastHLine(100, 70, SCREEN_WIDTH - 200, Grey);
+  drawString(SCREEN_WIDTH / 2, 35, TXT_INFO_HELP, CENTER);
+  drawFastHLine(100, 87, SCREEN_WIDTH - 200, Black);
+  drawFastHLine(100, 90, SCREEN_WIDTH - 200, Grey);
 
   // Page indicator
   setFont(OpenSans10B);
@@ -2884,7 +2889,7 @@ void DisplayInfoHelpScreen() {
 
   drawInfoNavArrow(50);
 
-  int y = 90;
+  int y = 120;
   int lineH = 26;
   int col1 = 50;
   int col2 = 530;
@@ -2892,71 +2897,73 @@ void DisplayInfoHelpScreen() {
   setFont(OpenSans12B);
 
   // Navigation tips
-  drawString(col1, y, "Navegacion", LEFT);
-  drawFastHLine(col1, y + 18, 150, Grey);
+  drawString(col1, y, TXT_HELP_NAV, LEFT);
+  drawFastHLine(col1, y + 18, 220, Grey);
   y += 28;
 
   setFont(OpenSans10B);
-  drawString(col1, y, "* Zona superior central: Condiciones actuales", LEFT);
+  drawString(col1, y, TXT_HELP_ZONE, LEFT);
   y += lineH;
-  drawString(col1, y, "* Iconos pronostico: Pronostico extendido", LEFT);
+  drawString(col1, y, TXT_HELP_ICONS, LEFT);
   y += lineH;
-  drawString(col1, y, "* Graficas izquierda: Historial real", LEFT);
+  drawString(col1, y, TXT_HELP_GRAPH_LEFT, LEFT);
   y += lineH;
-  drawString(col1, y, "* Graficas derecha: Tendencias futuras", LEFT);
+  drawString(col1, y, TXT_HELP_GRAPH_RIGHT, LEFT);
   y += lineH;
-  drawString(col1, y, "* Bateria/WiFi: Esta pantalla", LEFT);
+  drawString(col1, y, TXT_HELP_BATTERY, LEFT);
   y += lineH;
-  drawString(col1, y, "* Luna/Sol: Calendario", LEFT);
+  drawString(col1, y, TXT_HELP_CALENDAR, LEFT);
   y += lineH + 10;
 
   // Config tips
   setFont(OpenSans12B);
-  drawString(col1, y, "Configuracion Inicial", LEFT);
+  drawString(col1, y, TXT_HELP_INITIAL, LEFT);
   drawFastHLine(col1, y + 18, 230, Grey);
   y += 28;
 
   setFont(OpenSans10B);
-  drawString(col1, y, "1. Conectar a WiFi: WeatherStation-Setup", LEFT);
+  drawString(col1, y, TXT_HELP_STEP1, LEFT);
   y += lineH;
-  drawString(col1, y, "2. Abrir: http://192.168.4.1", LEFT);
+  drawString(col1, y, TXT_HELP_STEP2, LEFT);
   y += lineH;
-  drawString(col1, y, "3. Configurar WiFi, API Key, ubicacion", LEFT);
+  drawString(col1, y, TXT_HELP_STEP3, LEFT);
   y += lineH;
-  drawString(col1, y, "4. Guardar y reiniciar", LEFT);
+  drawString(col1, y, TXT_HELP_STEP4, LEFT);
+  y += lineH;
+  drawString(col1, y, TXT_HELP_STEP5, LEFT);
   y += lineH + 10;
 
   // Right column - Troubleshooting
-  y = 90;
+  y = 120;
 
   setFont(OpenSans12B);
-  drawString(col2, y, "Solucion de Problemas", LEFT);
+  drawString(col2, y, TXT_HELP_TROUBLE, LEFT);
   drawFastHLine(col2, y + 18, 250, Grey);
   y += 28;
 
   setFont(OpenSans10B);
-  drawString(col2, y, "Sin WiFi: Verifica SSID y password", LEFT);
+  drawString(col2, y, TXT_HELP_NOWIFI, LEFT);
   y += lineH;
-  drawString(col2, y, "Sin datos: Verifica API Key", LEFT);
+  drawString(col2, y, TXT_HELP_NODATA, LEFT);
   y += lineH;
-  drawString(col2, y, "Ghosting: Usa boton Limpiar", LEFT);
+  drawString(col2, y, TXT_HELP_GHOST, LEFT);
   y += lineH;
-  drawString(col2, y, "Touch falla: Limpia pantalla", LEFT);
-  y += lineH + 10;
+  drawString(col2, y, TXT_HELP_TOUCH, LEFT);
+  y += lineH * 3;
 
   setFont(OpenSans12B);
-  drawString(col2, y, "MODO BOOTLOADER", LEFT);
+  drawString(col2, y, TXT_HELP_BOOT, LEFT);
   drawFastHLine(col2, y + 18, 200, Grey);
   y += 28;
 
   setFont(OpenSans10B);
-  drawString(col2, y, "1. Mantener BOOT presionado", LEFT);
+  drawString(col2, y, TXT_HELP_BOOT1, LEFT);
   y += lineH;
-  drawString(col2, y, "2. Presionar RST", LEFT);
+  drawString(col2, y, TXT_HELP_BOOT2, LEFT);
   y += lineH;
-  drawString(col2, y, "3. Soltar RST, luego BOOT", LEFT);
+  drawString(col2, y, TXT_HELP_BOOT3, LEFT);
   y += lineH;
-  drawString(col2, y, "4. Cargar firmware", LEFT);
+  drawString(col2, y, TXT_HELP_BOOT4, LEFT);
 
   // Footer
   setFont(OpenSans8B);
@@ -2968,7 +2975,7 @@ void DisplayInfoCreditsScreen() {
 
   // Title
   setFont(OpenSans18B);
-  drawString(SCREEN_WIDTH / 2, 35, "Creditos", CENTER);
+  drawString(SCREEN_WIDTH / 2, 35, TXT_INFO_CREDITS, CENTER);
   drawFastHLine(100, 67, SCREEN_WIDTH - 200, Black);
   drawFastHLine(100, 70, SCREEN_WIDTH - 200, Grey);
 
@@ -3040,7 +3047,7 @@ void DisplayInfoCreditsScreen() {
   y += 28;
 
   setFont(OpenSans10B);
-  drawString(col2, y, "LilyGo T5 4.7\" S3 EPD", LEFT);
+  drawString(col2, y, "LilyGo T5 4.7\" S3 EPD touch", LEFT);
   y += lineH + 10;
 
   setFont(OpenSans12B);
@@ -3065,15 +3072,12 @@ void DisplayInfoCreditsScreen() {
   drawString(col2, y, "github.com/xe1e", LEFT);
   y += lineH + 10;
 
-  // QR Code placeholder
-  setFont(OpenSans10B);
-  drawString(col2 + 100, y + 20, "[ QR ]", CENTER);
-  drawString(col2 + 100, y + 42, "Manual", CENTER);
-  drawRect(col2 + 45, y, 110, 70, Black);
+  // QR Code for github.com/xe1e
+  drawQRCode(QR_XE1E, col2 + 5, y, 4);  // 29x4 = 116px + margins
 
   // License notice (required by original license)
-  setFont(OpenSans10B);
-  drawString(col1, 485, "Solo uso personal, no comercial. Original: David Bird (G6EJD) - Ver Licence.txt", LEFT);
+  setFont(OpenSans8B);
+  drawString(col1, 490, "Solo uso personal, no comercial. Original: David Bird (G6EJD) - Ver Licence.txt", LEFT);
 }
 
 // Screen 6: Weather History (real recorded data)

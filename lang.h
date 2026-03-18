@@ -345,7 +345,60 @@ const char* TXT_5DAY_FORECAST_ARR[] = { "Pronostico", "Forecast", "Previsions" }
 const char* TXT_WEATHER_TRENDS_ARR[] = { "Tendencia del Clima", "Weather Trends", "Tendances Meteo" };
 const char* TXT_NEXT_24H_ARR[] = { "Proximas 24 Horas", "Next 24 Hours", "Prochaines 24 Heures" };
 const char* TXT_5DAY_OUTLOOK_ARR[] = { "Proximos 5 Dias", "Next 5 Days", "Prochains 5 Jours" };
-const char* TXT_SYSTEM_INFO_ARR[] = { "Configuracion del Sistema", "System Configuration", "Configuration Systeme" };
+const char* TXT_SYSTEM_INFO_ARR[] = { "CONFIGURACION DEL SISTEMA", "SYSTEM CONFIGURATION", "CONFIGURATION SYSTEME" };
+const char* TXT_INFO_HARDWARE_ARR[] = { "CARACTERISTICAS - HARDWARE", "FEATURES - HARDWARE", "CARACTERISTIQUES - HARDWARE" };
+const char* TXT_INFO_SOFTWARE_ARR[] = { "CARACTERISTICAS - SOFTWARE", "FEATURES - SOFTWARE", "CARACTERISTIQUES - SOFTWARE" };
+const char* TXT_INFO_HELP_ARR[] = { "AYUDA RAPIDA", "QUICK HELP", "AIDE RAPIDE" };
+const char* TXT_INFO_CREDITS_ARR[] = { "CREDITOS", "CREDITS", "CREDITS" };
+
+// Help screen texts
+const char* TXT_HELP_NAV_ARR[] = { "Navegacion - (touch)", "Navigation - (touch)", "Navigation - (touch)" };
+const char* TXT_HELP_CALENDAR_ARR[] = { "* Luna/Sol: Calendario (touch largo)", "* Moon/Sun: Calendar (long touch)", "* Lune/Soleil: Calendrier (touch long)" };
+const char* TXT_HELP_ZONE_ARR[] = { "* Zona superior central: Condiciones actuales", "* Upper central zone: Current conditions", "* Zone centrale superieure: Conditions actuelles" };
+const char* TXT_HELP_ICONS_ARR[] = { "* Iconos pronostico: Pronostico extendido", "* Forecast icons: Extended forecast", "* Icones previsions: Previsions etendues" };
+const char* TXT_HELP_GRAPH_LEFT_ARR[] = { "* Graficas izquierda: Historial real", "* Left graphs: Real history", "* Graphiques gauche: Historique reel" };
+const char* TXT_HELP_GRAPH_RIGHT_ARR[] = { "* Graficas derecha: Tendencias futuras", "* Right graphs: Future trends", "* Graphiques droite: Tendances futures" };
+const char* TXT_HELP_BATTERY_ARR[] = { "* Bateria/WiFi: Esta pantalla", "* Battery/WiFi: This screen", "* Batterie/WiFi: Cet ecran" };
+const char* TXT_HELP_INITIAL_ARR[] = { "Configuracion Inicial", "Initial Setup", "Configuration Initiale" };
+const char* TXT_HELP_STEP1_ARR[] = { "1. Conectar a WiFi: WeatherStation-Setup", "1. Connect to WiFi: WeatherStation-Setup", "1. Connecter au WiFi: WeatherStation-Setup" };
+const char* TXT_HELP_STEP2_ARR[] = { "2. Abrir: http://192.168.4.1", "2. Open: http://192.168.4.1", "2. Ouvrir: http://192.168.4.1" };
+const char* TXT_HELP_STEP3_ARR[] = { "3. Configurar WiFi, API Key, ubicacion", "3. Configure WiFi, API Key, location", "3. Configurer WiFi, API Key, emplacement" };
+const char* TXT_HELP_STEP4_ARR[] = { "4. Configurar demas parametros", "4. Configure other parameters", "4. Configurer autres parametres" };
+const char* TXT_HELP_STEP5_ARR[] = { "5. Guardar y reiniciar", "5. Save and restart", "5. Enregistrer et redemarrer" };
+const char* TXT_HELP_TROUBLE_ARR[] = { "Solucion de Problemas", "Troubleshooting", "Depannage" };
+const char* TXT_HELP_NOWIFI_ARR[] = { "Sin WiFi: Verifica SSID y password", "No WiFi: Check SSID and password", "Sans WiFi: Verifier SSID et mot de passe" };
+const char* TXT_HELP_NODATA_ARR[] = { "Sin datos: Verifica API Key", "No data: Check API Key", "Sans donnees: Verifier API Key" };
+const char* TXT_HELP_GHOST_ARR[] = { "Ghosting: Usa boton Limpiar", "Ghosting: Use Clean button", "Ghosting: Utiliser bouton Nettoyer" };
+const char* TXT_HELP_TOUCH_ARR[] = { "Touch falla: Limpia pantalla", "Touch fails: Clean screen", "Touch echoue: Nettoyer ecran" };
+const char* TXT_HELP_BOOT_ARR[] = { "MODO BOOTLOADER", "BOOTLOADER MODE", "MODE BOOTLOADER" };
+const char* TXT_HELP_BOOT1_ARR[] = { "1. Mantener BOOT presionado", "1. Hold BOOT pressed", "1. Maintenir BOOT appuye" };
+const char* TXT_HELP_BOOT2_ARR[] = { "2. Presionar RST", "2. Press RST", "2. Appuyer RST" };
+const char* TXT_HELP_BOOT3_ARR[] = { "3. Soltar RST, luego BOOT", "3. Release RST, then BOOT", "3. Relacher RST, puis BOOT" };
+const char* TXT_HELP_BOOT4_ARR[] = { "4. Cargar firmware", "4. Upload firmware", "4. Charger firmware" };
+
+#define TXT_HELP_NAV String(TXT_HELP_NAV_ARR[currentLang])
+#define TXT_HELP_CALENDAR String(TXT_HELP_CALENDAR_ARR[currentLang])
+#define TXT_HELP_ZONE String(TXT_HELP_ZONE_ARR[currentLang])
+#define TXT_HELP_ICONS String(TXT_HELP_ICONS_ARR[currentLang])
+#define TXT_HELP_GRAPH_LEFT String(TXT_HELP_GRAPH_LEFT_ARR[currentLang])
+#define TXT_HELP_GRAPH_RIGHT String(TXT_HELP_GRAPH_RIGHT_ARR[currentLang])
+#define TXT_HELP_BATTERY String(TXT_HELP_BATTERY_ARR[currentLang])
+#define TXT_HELP_INITIAL String(TXT_HELP_INITIAL_ARR[currentLang])
+#define TXT_HELP_STEP1 String(TXT_HELP_STEP1_ARR[currentLang])
+#define TXT_HELP_STEP2 String(TXT_HELP_STEP2_ARR[currentLang])
+#define TXT_HELP_STEP3 String(TXT_HELP_STEP3_ARR[currentLang])
+#define TXT_HELP_STEP4 String(TXT_HELP_STEP4_ARR[currentLang])
+#define TXT_HELP_STEP5 String(TXT_HELP_STEP5_ARR[currentLang])
+#define TXT_HELP_TROUBLE String(TXT_HELP_TROUBLE_ARR[currentLang])
+#define TXT_HELP_NOWIFI String(TXT_HELP_NOWIFI_ARR[currentLang])
+#define TXT_HELP_NODATA String(TXT_HELP_NODATA_ARR[currentLang])
+#define TXT_HELP_GHOST String(TXT_HELP_GHOST_ARR[currentLang])
+#define TXT_HELP_TOUCH String(TXT_HELP_TOUCH_ARR[currentLang])
+#define TXT_HELP_BOOT String(TXT_HELP_BOOT_ARR[currentLang])
+#define TXT_HELP_BOOT1 String(TXT_HELP_BOOT1_ARR[currentLang])
+#define TXT_HELP_BOOT2 String(TXT_HELP_BOOT2_ARR[currentLang])
+#define TXT_HELP_BOOT3 String(TXT_HELP_BOOT3_ARR[currentLang])
+#define TXT_HELP_BOOT4 String(TXT_HELP_BOOT4_ARR[currentLang])
 
 #define TXT_BACK String(TXT_BACK_ARR[currentLang])
 #define TXT_CURRENT_CONDITIONS String(TXT_CURRENT_CONDITIONS_ARR[currentLang])
@@ -354,6 +407,10 @@ const char* TXT_SYSTEM_INFO_ARR[] = { "Configuracion del Sistema", "System Confi
 #define TXT_NEXT_24H String(TXT_NEXT_24H_ARR[currentLang])
 #define TXT_5DAY_OUTLOOK String(TXT_5DAY_OUTLOOK_ARR[currentLang])
 #define TXT_SYSTEM_INFO String(TXT_SYSTEM_INFO_ARR[currentLang])
+#define TXT_INFO_HARDWARE String(TXT_INFO_HARDWARE_ARR[currentLang])
+#define TXT_INFO_SOFTWARE String(TXT_INFO_SOFTWARE_ARR[currentLang])
+#define TXT_INFO_HELP String(TXT_INFO_HELP_ARR[currentLang])
+#define TXT_INFO_CREDITS String(TXT_INFO_CREDITS_ARR[currentLang])
 
 // ============== DISPLAY LABELS ==============
 const char* TXT_HUMIDITY_ARR[] = { "Humedad", "Humidity", "Humidite" };
