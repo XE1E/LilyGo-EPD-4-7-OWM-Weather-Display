@@ -17,6 +17,7 @@
     - [12.1 Calendario](#121-calendario)
     - [12.2 Tarjeta SD](#122-tarjeta-sd)
     - [12.3 Acceso Web](#123-acceso-web)
+    - [12.4 Configuracion Bluetooth](#124-configuracion-bluetooth)
 13. [Apendice](#13-apendice)
 
 ---
@@ -34,6 +35,7 @@ La Estacion Meteorologica LilyGo EPD 4.7" es un dispositivo basado en ESP32-S3 q
 - **Multi-WiFi** - Soporte para hasta 3 redes WiFi configurables
 - **Modo AP (Access Point)** - Portal cautivo para configuracion inicial
 - **Servidor web integrado** - Configuracion desde cualquier navegador en la red local
+- **Configuracion Bluetooth** - App Android para configurar via BLE
 - **Deep Sleep** - Bajo consumo para operacion con bateria
 - **Multi-idioma** - Espanol, Ingles y Frances
 - **Actualizacion automatica** - Intervalo configurable (5-120 minutos)
@@ -1512,6 +1514,71 @@ Muestra una tabla con las ultimas 50 lecturas del buffer en memoria:
 | Guardar configuracion | Reinicia timeout de 2 min |
 
 El servidor permanece activo mientras se este usando la pagina de configuracion, evitando que el dispositivo entre en sleep durante la configuracion.
+
+### 12.4 Configuracion Bluetooth
+
+El dispositivo soporta configuracion via Bluetooth Low Energy (BLE) usando una aplicacion Android.
+
+#### 12.4.1 Activacion del Modo BLE
+
+1. Navegar a la pantalla **Configuracion del Sistema** (Info)
+2. Tocar el boton **Bluetooth** (esquina inferior izquierda)
+3. La pantalla mostrara "CONFIGURACION BLUETOOTH"
+4. El dispositivo aparecera como **WeatherStation-BLE**
+
+#### 12.4.2 App Android
+
+La aplicacion Android se encuentra en la carpeta `android-app/` del repositorio.
+
+**Compilacion:**
+1. Abrir la carpeta `android-app` en Android Studio
+2. Sincronizar Gradle
+3. Build > Make Project
+4. Instalar en dispositivo Android
+
+**Requisitos:**
+- Android 8.0 (API 26) o superior
+- Bluetooth Low Energy (BLE)
+- Permisos de ubicacion (requerido para BLE)
+
+#### 12.4.3 Uso de la App
+
+1. **Buscar Dispositivo** - Escanea dispositivos BLE cercanos
+2. **Conectar** - Establece conexion con la estacion
+3. **Configurar** - Abre pantalla de configuracion
+4. Ingresar los parametros deseados
+5. **Enviar Configuracion** - Envia todos los valores
+6. **Guardar** - Guarda en memoria del dispositivo
+7. **Reiniciar** - Reinicia para aplicar cambios
+
+#### 12.4.4 Parametros Configurables via BLE
+
+| Categoria | Parametros |
+|-----------|------------|
+| WiFi | Hasta 3 redes (SSID + password) |
+| API | API Key de OpenWeatherMap |
+| Ubicacion | Ciudad, Latitud, Longitud |
+| Regional | Idioma, Hemisferio, Unidades |
+| Zona Horaria | Timezone, GMT offset, DST offset |
+| Comportamiento | Intervalo actualizacion, dias pronostico |
+| Sleep | Timeout, hora despertar/dormir |
+
+#### 12.4.5 Comandos BLE
+
+| Comando | Funcion |
+|---------|---------|
+| Leer Config | Obtiene configuracion actual del dispositivo |
+| Enviar Config | Envia nuevos valores (sin guardar) |
+| Probar WiFi | Verifica conexion WiFi con credenciales enviadas |
+| Guardar | Guarda configuracion en memoria permanente |
+| Reiniciar | Reinicia el dispositivo |
+
+#### 12.4.6 Ventajas sobre Web Config
+
+- No requiere conexion WiFi previa
+- Util para configuracion inicial
+- Funciona aunque no haya red disponible
+- Configuracion desde cualquier ubicacion
 
 ---
 
