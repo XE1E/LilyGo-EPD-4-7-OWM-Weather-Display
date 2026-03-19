@@ -1212,12 +1212,12 @@ void DisplayTemperatureSection(int x, int y) {
 
   // Row 1: Temperature and Humidity
   setFont(OpenSans24B);
-  drawString(x + 80, y, String(WxConditions[0].Temperature, 1) + "°", LEFT);
+  drawString(x + 60, y, String(WxConditions[0].Temperature, 1) + "°", LEFT);
   drawString(x + 250, y, String(WxConditions[0].Humidity, 0) + "%", LEFT);
 
   // Row 2: Min|Max and UV Index
   setFont(OpenSans12B);
-  drawString(x + 130, y + 45, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER);
+  drawString(x + 115, y + 45, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER);
   drawString(x + 300, y + 50, TXT_UV_INDEX + " " + String(WxConditions[0].UVIndex, 0), CENTER);
 }
 

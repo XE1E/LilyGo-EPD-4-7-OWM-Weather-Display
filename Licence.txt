@@ -44,3 +44,6 @@ Current modifications:
     * Weather history with SD Card + FFat
     * UV Index and Air Quality display
     * Monthly and yearly calendar
+    * Bluetooth BLE configuration from menu
+    * Android app for BLE configuration (Kotlin)
+    * QR code on credits screen
