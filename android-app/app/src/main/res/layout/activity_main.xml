@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal">
+
+    <ImageView
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:src="@android:drawable/stat_sys_data_bluetooth"
+        android:layout_marginTop="32dp"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Weather Station BLE"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Configuracion Bluetooth"
+        android:textSize="16sp"
+        android:textColor="@android:color/darker_gray"
+        android:layout_marginBottom="32dp" />
+
+    <TextView
+        android:id="@+id/tvDeviceName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="No encontrado"
+        android:textSize="18sp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Desconectado"
+        android:textColor="@android:color/darker_gray"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/btnScan"
+        android:layout_width="240dp"
+        android:layout_height="wrap_content"
+        android:text="Buscar Dispositivo"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btnConnect"
+        android:layout_width="240dp"
+        android:layout_height="wrap_content"
+        android:text="Conectar"
+        android:enabled="false"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btnConfigure"
+        android:layout_width="240dp"
+        android:layout_height="wrap_content"
+        android:text="Configurar"
+        android:enabled="false"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/btnDisconnect"
+        android:layout_width="240dp"
+        android:layout_height="wrap_content"
+        android:text="Desconectar"
+        android:enabled="false"
+        style="@style/Widget.Material3.Button.OutlinedButton" />
+
+</LinearLayout>

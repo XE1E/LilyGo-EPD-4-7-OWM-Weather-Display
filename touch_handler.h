@@ -22,7 +22,8 @@ enum ScreenState {
   SCREEN_INFO_FEATURES2,
   SCREEN_INFO_HELP,
   SCREEN_INFO_CREDITS,
-  SCREEN_CALLSIGN
+  SCREEN_CALLSIGN,
+  SCREEN_BLE_CONFIG
 };
 
 // Touch zone structure
@@ -237,15 +238,20 @@ bool readTouchPoint(TouchPoint &point) {
 ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
   Serial.printf("Checking zones for touch at (%d, %d), current screen: %d\n", touchX, touchY, currentState);
 
-  // Special handling for INFO screen - arrow to Features1 or clean button
+  // Special handling for INFO screen - arrow to Features1 or clean/BLE buttons
   if (currentState == SCREEN_INFO) {
     // Right arrow zone (right side, Y 230-330 like calendar)
     if (touchX >= 800 && touchX <= 960 && touchY >= 230 && touchY <= 330) {
       Serial.println(">>> Info next arrow touched - going to Features 1/2");
       return SCREEN_INFO_FEATURES1;
     }
-    // Clean button zone: bottom center (inverted coords: X 300-660, Y 0-100)
-    if (touchX >= 300 && touchX <= 660 && touchY >= 0 && touchY <= 100) {
+    // Bluetooth button zone: bottom left (X 50-230, Y 0-100 in touch coords)
+    if (touchX >= 50 && touchX <= 230 && touchY >= 0 && touchY <= 100) {
+      Serial.println(">>> Bluetooth button touched - entering BLE config");
+      return SCREEN_BLE_CONFIG;
+    }
+    // Clean button zone: bottom center (inverted coords: X 350-630, Y 0-100)
+    if (touchX >= 350 && touchX <= 630 && touchY >= 0 && touchY <= 100) {
       Serial.println(">>> Clean button touched on INFO screen");
       return (ScreenState)SCREEN_CLEAN_ACTION;
     }

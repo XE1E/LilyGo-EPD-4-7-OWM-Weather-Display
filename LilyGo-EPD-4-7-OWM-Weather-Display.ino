@@ -173,6 +173,7 @@ void setFont(GFXfont const &font);
 void edp_update();
 #include "qr_codes.h"
 #include "callsign.h"
+#include "ble_config.h"
 
 GFXfont  currentFont;
 uint8_t *framebuffer;
@@ -386,6 +387,27 @@ void drawCurrentScreen() {
     case SCREEN_INFO_HELP:      DisplayInfoHelpScreen(); break;
     case SCREEN_INFO_CREDITS:   DisplayInfoCreditsScreen(); break;
     case SCREEN_CALLSIGN:       DisplayCallsignScreen(); break;
+    case SCREEN_BLE_CONFIG:     enterBLEConfigMode(); break;
+  }
+}
+
+// Enter BLE configuration mode from menu
+void enterBLEConfigMode() {
+  Serial.println("Entering BLE config mode from menu...");
+  epd_clear();
+  delay(100);
+  DisplayBLEConfigScreen();
+  delay(500);
+  initBLE();
+
+  // Stay in BLE mode until restart
+  while (bleConfigMode) {
+    if (bleDeviceConnected != bleOldDeviceConnected) {
+      bleOldDeviceConnected = bleDeviceConnected;
+      epd_clear();  // Clear ghosting before redraw
+      DisplayBLEConfigScreen();
+    }
+    delay(100);
   }
 }
 
@@ -725,6 +747,31 @@ void setup() {
       Serial.printf("Wakeup was not caused by deep sleep: %d (power on or reset)\n", wakeup_reason);
       break;
   }
+
+  // Check if BOOT button is pressed for BLE config mode
+  // DISABLED - GPIO 0 reading unreliable, need different approach
+  /*
+  if (isBootButtonPressed()) {
+    Serial.println("BOOT button pressed - entering BLE config mode...");
+    epd_poweron();
+    epd_clear();
+    delay(100);
+    // Show screen first, then init BLE
+    DisplayBLEConfigScreen();
+    delay(500);
+    initBLE();
+    // Stay in BLE mode until restart
+    while (bleConfigMode) {
+      // Update display if connection state changes
+      if (bleDeviceConnected != bleOldDeviceConnected) {
+        bleOldDeviceConnected = bleDeviceConnected;
+        DisplayBLEConfigScreen();
+      }
+      delay(100);
+    }
+    return;
+  }
+  */
 
   // Initialize touch controller
   if (InitializeTouch()) {
@@ -2714,15 +2761,22 @@ void DisplayInfoScreen() {
     drawString(col4X, 379, TXT_WIFI_DISCONNECTED, LEFT);
   }
 
-  // Clean display button at bottom center
+  // Bluetooth config button at bottom left
   setFont(OpenSans12B);
-  int btnX = SCREEN_WIDTH/2 - 120;
+  int bleBtnX = 50;
   int btnY = 451;
+  for (int i = 0; i < 5; i++) {
+    drawRect(bleBtnX + i, btnY + i, 180 - i*2, 45 - i*2, Black);
+  }
+  drawString(bleBtnX + 90, btnY + 8, "Bluetooth", CENTER);
+
+  // Clean display button at bottom center
+  int btnX = SCREEN_WIDTH/2 - 80;
   // Draw thick border (5px) like toggle buttons
   for (int i = 0; i < 5; i++) {
-    drawRect(btnX + i, btnY + i, 240 - i*2, 45 - i*2, Black);
+    drawRect(btnX + i, btnY + i, 200 - i*2, 45 - i*2, Black);
   }
-  drawString(SCREEN_WIDTH/2, btnY + 8, TXT_CLEAN_SCREEN, CENTER);
+  drawString(SCREEN_WIDTH/2 + 20, btnY + 8, TXT_CLEAN_SCREEN, CENTER);
 
   // Right arrow (next page - Features) - like calendar arrows
   int arrowY = 50;

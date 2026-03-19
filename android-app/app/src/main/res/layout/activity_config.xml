@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Status -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Conectado"
+            android:textAlignment="center"
+            android:padding="8dp"
+            android:background="#E0E0E0"
+            android:layout_marginBottom="16dp" />
+
+        <!-- WiFi Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Redes WiFi"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp" />
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="WiFi 1" android:textSize="12sp" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <EditText android:id="@+id/etWifi1Ssid" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="SSID" android:inputType="text" />
+            <EditText android:id="@+id/etWifi1Pass" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Password" android:inputType="textPassword" />
+        </LinearLayout>
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="WiFi 2" android:textSize="12sp" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <EditText android:id="@+id/etWifi2Ssid" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="SSID" android:inputType="text" />
+            <EditText android:id="@+id/etWifi2Pass" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Password" android:inputType="textPassword" />
+        </LinearLayout>
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="WiFi 3" android:textSize="12sp" />
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="16dp">
+            <EditText android:id="@+id/etWifi3Ssid" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="SSID" android:inputType="text" />
+            <EditText android:id="@+id/etWifi3Pass" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Password" android:inputType="textPassword" />
+        </LinearLayout>
+
+        <!-- API Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="API y Ubicacion"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp" />
+
+        <EditText android:id="@+id/etApiKey" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:hint="API Key (OpenWeatherMap)"
+            android:inputType="text" />
+
+        <EditText android:id="@+id/etCity" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:hint="Ciudad"
+            android:inputType="text" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="16dp">
+            <EditText android:id="@+id/etLatitude" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Latitud"
+                android:inputType="numberDecimal|numberSigned" />
+            <EditText android:id="@+id/etLongitude" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Longitud"
+                android:inputType="numberDecimal|numberSigned" />
+        </LinearLayout>
+
+        <!-- Regional Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Regional"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="8dp">
+            <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Idioma" android:textSize="12sp" />
+                <Spinner android:id="@+id/spinnerLanguage"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Hemisferio" android:textSize="12sp" />
+                <Spinner android:id="@+id/spinnerHemisphere"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:orientation="vertical">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Unidades" android:textSize="12sp" />
+                <Spinner android:id="@+id/spinnerUnits"
+                    android:layout_width="match_parent" android:layout_height="wrap_content" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <EditText android:id="@+id/etTimezone" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:hint="Zona horaria (ej: CST6CDT)"
+            android:inputType="text" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="16dp">
+            <EditText android:id="@+id/etGmtOffset" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="GMT offset (seg)"
+                android:inputType="numberSigned" />
+            <EditText android:id="@+id/etDstOffset" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="DST offset (seg)"
+                android:inputType="numberSigned" />
+        </LinearLayout>
+
+        <!-- Behavior Section -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Comportamiento"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:layout_marginBottom="8dp" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <EditText android:id="@+id/etUpdateInterval" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Actualizar (min)"
+                android:inputType="number" />
+            <EditText android:id="@+id/etForecastDays" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Dias pronostico"
+                android:inputType="number" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <EditText android:id="@+id/etSleepTimeout" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Sleep timeout (seg)"
+                android:inputType="number" />
+            <CheckBox android:id="@+id/cbKeepScreen" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:text="Mantener pantalla" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="24dp">
+            <EditText android:id="@+id/etWakeupHour" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Hora despertar (0-23)"
+                android:inputType="number" />
+            <EditText android:id="@+id/etSleepHour" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_height="wrap_content" android:hint="Hora dormir (0-23)"
+                android:inputType="number" />
+        </LinearLayout>
+
+        <!-- Action Buttons -->
+        <Button android:id="@+id/btnReadConfig" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Leer Configuracion Actual"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_marginBottom="8dp" />
+
+        <Button android:id="@+id/btnSendConfig" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Enviar Configuracion"
+            android:layout_marginBottom="8dp" />
+
+        <Button android:id="@+id/btnTestWifi" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Probar WiFi"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_marginBottom="8dp" />
+
+        <Button android:id="@+id/btnSave" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Guardar en Dispositivo"
+            android:layout_marginBottom="8dp" />
+
+        <Button android:id="@+id/btnRestart" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:text="Reiniciar Dispositivo"
+            android:backgroundTint="#D32F2F"
+            android:layout_marginBottom="24dp" />
+
+    </LinearLayout>
+</ScrollView>

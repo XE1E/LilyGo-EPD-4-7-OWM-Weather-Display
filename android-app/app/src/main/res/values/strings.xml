@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Weather Station BLE</string>
+    <string name="title_config">Configuración</string>
+
+    <string-array name="languages">
+        <item>Español</item>
+        <item>English</item>
+        <item>Français</item>
+    </string-array>
+
+    <string-array name="hemispheres">
+        <item>Norte</item>
+        <item>Sur</item>
+    </string-array>
+
+    <string-array name="units">
+        <item>Métrico (°C, km)</item>
+        <item>Imperial (°F, mi)</item>
+    </string-array>
+</resources>
