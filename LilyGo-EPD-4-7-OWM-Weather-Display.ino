@@ -2686,79 +2686,90 @@ void DisplayInfoScreen() {
   // === LEFT COLUMN - Explicit Y coordinates ===
 
   // Section 1: System Info
-  drawString(col1X, 110, TXT_VERSION, LEFT);
-  drawString(col2X, 110, version, LEFT);
+  drawString(col1X, 100, TXT_VERSION, LEFT);
+  drawString(col2X, 100, version, LEFT);
 
-  drawString(col1X, 138, TXT_COMPILED, LEFT);
-  drawString(col2X, 138, String(__DATE__) + " " + String(__TIME__), LEFT);
+  drawString(col1X, 128, TXT_COMPILED, LEFT);
+  drawString(col2X, 128, String(__DATE__) + " " + String(__TIME__), LEFT);
 
-  drawString(col1X, 166, TXT_FREE_HEAP, LEFT);
-  drawString(col2X, 166, String(ESP.getFreeHeap() / 1024) + " KB", LEFT);
+  drawString(col1X, 156, TXT_FREE_HEAP, LEFT);
+  drawString(col2X, 156, String(ESP.getFreeHeap() / 1024) + " KB", LEFT);
 
-  drawString(col1X, 194, TXT_TOTAL_HEAP, LEFT);
-  drawString(col2X, 194, String(ESP.getHeapSize() / 1024) + " KB", LEFT);
+  drawString(col1X, 184, TXT_TOTAL_HEAP, LEFT);
+  drawString(col2X, 184, String(ESP.getHeapSize() / 1024) + " KB", LEFT);
 
-  drawString(col1X, 222, "PSRAM:", LEFT);
-  drawString(col2X, 222, String(ESP.getFreePsram() / 1024) + " KB", LEFT);
+  drawString(col1X, 212, "PSRAM:", LEFT);
+  drawString(col2X, 212, String(ESP.getFreePsram() / 1024) + " KB", LEFT);
 
   // Section 2: WiFi Info (with gap)
-  drawString(col1X, 265, "WiFi SSID:", LEFT);
-  drawString(col2X, 265, WiFi.isConnected() ? WiFi.SSID() : TXT_DISCONNECTED, LEFT);
+  drawString(col1X, 255, "WiFi SSID:", LEFT);
+  drawString(col2X, 255, WiFi.isConnected() ? WiFi.SSID() : TXT_DISCONNECTED, LEFT);
 
-  drawString(col1X, 293, "IP:", LEFT);
-  drawString(col2X, 293, WiFi.isConnected() ? WiFi.localIP().toString() : "--", LEFT);
+  drawString(col1X, 283, "IP:", LEFT);
+  drawString(col2X, 283, WiFi.isConnected() ? WiFi.localIP().toString() : "--", LEFT);
 
-  drawString(col1X, 321, TXT_WIFI_SIGNAL, LEFT);
-  drawString(col2X, 321, WiFi.isConnected() ? String(WiFi.RSSI()) + " dBm" : "--", LEFT);
+  drawString(col1X, 311, TXT_WIFI_SIGNAL, LEFT);
+  drawString(col2X, 311, WiFi.isConnected() ? String(WiFi.RSSI()) + " dBm" : "--", LEFT);
 
   // Section 3: Location (with gap)
-  drawString(col1X, 364, TXT_CITY, LEFT);
-  drawString(col2X, 364, String(config.city), LEFT);
+  drawString(col1X, 354, TXT_CITY, LEFT);
+  drawString(col2X, 354, String(config.city), LEFT);
 
-  drawString(col1X, 392, TXT_COORDINATES, LEFT);
-  drawString(col2X, 392, String(config.latitude) + ", " + String(config.longitude), LEFT);
+  drawString(col1X, 382, TXT_COORDINATES, LEFT);
+  drawString(col2X, 382, String(config.latitude) + ", " + String(config.longitude), LEFT);
 
-  drawString(col1X, 420, TXT_TIMEZONE, LEFT);
-  drawString(col2X, 420, String(config.timezone), LEFT);
+  drawString(col1X, 410, TXT_TIMEZONE, LEFT);
+  drawString(col2X, 410, String(config.timezone), LEFT);
 
   // === RIGHT COLUMN - Explicit Y coordinates ===
 
   // Section 1: Config
-  drawString(col3X, 110, TXT_LANGUAGE, LEFT);
+  drawString(col3X, 100, TXT_LANGUAGE, LEFT);
   String langStr = strcmp(config.language, "ES") == 0 ? "Espanol" :
                    strcmp(config.language, "EN") == 0 ? "English" : "Francais";
-  drawString(col4X, 110, langStr, LEFT);
+  drawString(col4X, 100, langStr, LEFT);
 
-  drawString(col3X, 138, TXT_UNITS, LEFT);
-  drawString(col4X, 138, strcmp(config.units, "M") == 0 ? TXT_METRIC : TXT_IMPERIAL, LEFT);
+  drawString(col3X, 128, TXT_UNITS, LEFT);
+  drawString(col4X, 128, strcmp(config.units, "M") == 0 ? TXT_METRIC : TXT_IMPERIAL, LEFT);
 
-  drawString(col3X, 166, TXT_HEMISPHERE, LEFT);
-  drawString(col4X, 166, strcmp(config.hemisphere, "north") == 0 ? TXT_NORTH : TXT_SOUTH, LEFT);
+  drawString(col3X, 156, TXT_HEMISPHERE, LEFT);
+  drawString(col4X, 156, strcmp(config.hemisphere, "north") == 0 ? TXT_NORTH : TXT_SOUTH, LEFT);
 
-  drawString(col3X, 194, TXT_FORECAST, LEFT);
-  drawString(col4X, 194, String(config.forecast_days) + " " + TXT_DAYS, LEFT);
+  drawString(col3X, 184, TXT_FORECAST, LEFT);
+  drawString(col4X, 184, String(config.forecast_days) + " " + TXT_DAYS, LEFT);
 
   // Section 2: System Config (with gap)
-  drawString(col3X, 237, TXT_UPDATE_INTERVAL, LEFT);
-  drawString(col4X, 237, String(config.update_interval) + " min", LEFT);
+  drawString(col3X, 227, TXT_UPDATE_INTERVAL, LEFT);
+  drawString(col4X, 227, String(config.update_interval) + " min", LEFT);
 
-  drawString(col3X, 265, "Timeout:", LEFT);
-  drawString(col4X, 265, String(config.sleep_timeout) + " " + TXT_SEC, LEFT);
+  drawString(col3X, 255, "Timeout:", LEFT);
+  drawString(col4X, 255, String(config.sleep_timeout) + " " + TXT_SEC, LEFT);
 
-  drawString(col3X, 293, TXT_ON_SLEEP, LEFT);
-  drawString(col4X, 293, config.keep_screen_on_sleep ? TXT_KEEP_SCREEN : TXT_GO_MAIN, LEFT);
+  drawString(col3X, 283, TXT_ON_SLEEP, LEFT);
+  drawString(col4X, 283, config.keep_screen_on_sleep ? TXT_KEEP_SCREEN : TXT_GO_MAIN, LEFT);
 
   // Section 3: API Info (with gap)
-  drawString(col3X, 336, "API Key:", LEFT);
+  drawString(col3X, 326, "API Key:", LEFT);
   String apiKeyMasked = String(config.api_key).substring(0, 8) + "...";
-  drawString(col4X, 336, apiKeyMasked, LEFT);
+  drawString(col4X, 326, apiKeyMasked, LEFT);
 
   // Web Config URL
-  drawString(col3X, 379, TXT_WEB_CONFIG, LEFT);
+  drawString(col3X, 369, TXT_WEB_CONFIG, LEFT);
   if (WiFi.isConnected()) {
-    drawString(col4X, 379, "http://" + WiFi.localIP().toString(), LEFT);
+    drawString(col4X, 369, "http://" + WiFi.localIP().toString(), LEFT);
   } else {
-    drawString(col4X, 379, TXT_WIFI_DISCONNECTED, LEFT);
+    drawString(col4X, 369, TXT_WIFI_DISCONNECTED, LEFT);
+  }
+
+  // SD Card info (with gap)
+  drawString(col3X, 425, "SD Card:", LEFT);
+  if (sdCardAvailable) {
+    uint64_t totalMB = SD.cardSize() / (1024 * 1024);
+    uint64_t usedMB = SD.usedBytes() / (1024 * 1024);
+    uint64_t freeMB = totalMB - usedMB;
+    drawString(col4X, 425, String(usedMB) + "/" + String(totalMB) + " MB", LEFT);
+  } else {
+    drawString(col4X, 425, "--", LEFT);
   }
 
   // Bluetooth config button at bottom left
@@ -2768,13 +2779,13 @@ void DisplayInfoScreen() {
   for (int i = 0; i < 5; i++) {
     drawRect(bleBtnX + i, btnY + i, 180 - i*2, 45 - i*2, Black);
   }
-  drawString(bleBtnX + 90, btnY + 8, "Bluetooth", CENTER);
+  drawString(bleBtnX + 90, btnY + 11, "Bluetooth", CENTER);
 
   // Clean display button at bottom center
-  int btnX = SCREEN_WIDTH/2 - 80;
+  int btnX = SCREEN_WIDTH/2 - 120;
   // Draw thick border (5px) like toggle buttons
   for (int i = 0; i < 5; i++) {
-    drawRect(btnX + i, btnY + i, 200 - i*2, 45 - i*2, Black);
+    drawRect(btnX + i, btnY + i, 280 - i*2, 45 - i*2, Black);
   }
   drawString(SCREEN_WIDTH/2 + 20, btnY + 8, TXT_CLEAN_SCREEN, CENTER);
 

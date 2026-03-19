@@ -1,5 +1,7 @@
 # Weather Station BLE - Android App
 
+**Estado: PENDIENTE** - App en desarrollo, pendiente pruebas de compilacion.
+
 Aplicación Android para configurar la estación meteorológica LilyGo EPD 4.7" via Bluetooth Low Energy.
 
 ## Requisitos
@@ -18,12 +20,38 @@ Aplicación Android para configurar la estación meteorológica LilyGo EPD 4.7" 
 ./gradlew assembleDebug
 ```
 
+### Notas de Compilación
+
+**Versiones utilizadas:**
+- Android Gradle Plugin: 8.1.0
+- Gradle: 8.0
+- Kotlin: 1.9.0
+- Target SDK: 34
+
+**Problemas conocidos:**
+
+Si encuentras errores de `jlink.exe` o `JdkImageTransform`:
+1. Verificar que JAVA_HOME apunte al JDK de Android Studio:
+   ```
+   set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr
+   ```
+2. Limpiar cache de Gradle:
+   ```bash
+   ./gradlew clean
+   rm -rf ~/.gradle/caches
+   ```
+3. Cerrar Android Studio y cualquier proceso de Gradle antes de recompilar
+
+Si encuentras errores de Kotlin daemon:
+- Ya está configurado `kotlin.compiler.execution.strategy=in-process` en gradle.properties
+
 ## Uso
 
 ### En el ESP32:
-1. Presiona el botón **BOOT** mientras enciendes o reseteas el dispositivo
-2. La pantalla mostrará "CONFIGURACION BLUETOOTH"
-3. El dispositivo aparecerá como **WeatherStation-BLE**
+1. Navega a la pantalla **Info** (toca el icono de bateria/WiFi)
+2. Toca el botón **Bluetooth** en la esquina inferior izquierda
+3. La pantalla mostrará "CONFIGURACION BLUETOOTH"
+4. El dispositivo aparecerá como **WeatherStation-BLE**
 
 ### En la App:
 1. **Buscar Dispositivo** - Escanea dispositivos BLE cercanos
