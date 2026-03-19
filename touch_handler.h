@@ -23,7 +23,8 @@ enum ScreenState {
   SCREEN_INFO_HELP,
   SCREEN_INFO_CREDITS,
   SCREEN_CALLSIGN,
-  SCREEN_BLE_CONFIG
+  SCREEN_BLE_CONFIG,
+  SCREEN_WORLDCLOCK
 };
 
 // Touch zone structure
@@ -312,8 +313,14 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
     return SCREEN_INFO;
   }
 
-  // Special handling for CALLSIGN screen - any touch returns to Credits
+  // Special handling for CALLSIGN screen
   if (currentState == SCREEN_CALLSIGN) {
+    // Bottom section (subtitle area: Y_draw ~400-540 = touch Y ~0-140) -> World Clock
+    if (touchY >= 0 && touchY <= 140) {
+      Serial.println(">>> Callsign subtitle touched - going to World Clock");
+      return SCREEN_WORLDCLOCK;
+    }
+    // Any other touch returns to Credits
     Serial.println(">>> Touch on CALLSIGN - returning to Credits");
     return SCREEN_INFO_CREDITS;
   }
@@ -387,6 +394,12 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
     Serial.println(">>> Touch on CALENDAR_YEAR screen - returning to monthly calendar");
     calendarYearOffset = 0;  // Reset offset when leaving
     return SCREEN_CALENDAR;
+  }
+
+  // Special handling for WORLDCLOCK screen - any touch returns to callsign
+  if (currentState == SCREEN_WORLDCLOCK) {
+    Serial.println(">>> Touch on WORLDCLOCK screen - returning to callsign");
+    return SCREEN_CALLSIGN;
   }
 
   // Any touch on other secondary screens returns to main

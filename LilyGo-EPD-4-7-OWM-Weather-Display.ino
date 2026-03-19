@@ -174,6 +174,7 @@ void edp_update();
 #include "qr_codes.h"
 #include "callsign.h"
 #include "ble_config.h"
+#include "worldclock.h"
 
 GFXfont  currentFont;
 uint8_t *framebuffer;
@@ -388,6 +389,7 @@ void drawCurrentScreen() {
     case SCREEN_INFO_CREDITS:   DisplayInfoCreditsScreen(); break;
     case SCREEN_CALLSIGN:       DisplayCallsignScreen(); break;
     case SCREEN_BLE_CONFIG:     enterBLEConfigMode(); break;
+    case SCREEN_WORLDCLOCK:     DisplayWorldClockScreen(); break;
   }
 }
 
