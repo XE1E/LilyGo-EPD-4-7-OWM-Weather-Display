@@ -8,9 +8,9 @@
 // ============== CONFIGURATION ==============
 // Edit these values to customize your callsign display
 
-#define CALLSIGN_TEXT     "CALL"                    // 4-6 characters (A-Z, 0-9)
-#define CALLSIGN_LINE1    "Your Name"               // First line of subtitle (max 50 chars)
-#define CALLSIGN_LINE2    "Your City - Grid"        // Second line of subtitle (max 50 chars)
+#define CALLSIGN_TEXT     "XE1E"                    // 4-6 characters (A-Z, 0-9)
+#define CALLSIGN_LINE1    "Enrique"                 // First line of subtitle (max 50 chars)
+#define CALLSIGN_LINE2    "Ciudad de Mexico - EK09" // Second line of subtitle (max 50 chars)
 
 // ============== END CONFIGURATION ==============
 
