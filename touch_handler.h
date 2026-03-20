@@ -24,7 +24,16 @@ enum ScreenState {
   SCREEN_INFO_CREDITS,
   SCREEN_CALLSIGN,
   SCREEN_BLE_CONFIG,
-  SCREEN_WORLDCLOCK
+  SCREEN_WORLDCLOCK,
+  SCREEN_RADIO_MENU,
+  SCREEN_RADIO_PHONETIC,
+  SCREEN_RADIO_QCODES,
+  SCREEN_RADIO_MORSE,
+  SCREEN_RADIO_DXCC,
+  SCREEN_RADIO_DXCC2,
+  SCREEN_RADIO_DXCC3,
+  SCREEN_RADIO_PROPAGATION,
+  SCREEN_RADIO_CONTESTS
 };
 
 // Touch zone structure
@@ -251,10 +260,15 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
       Serial.println(">>> Bluetooth button touched - entering BLE config");
       return SCREEN_BLE_CONFIG;
     }
-    // Clean button zone: bottom center (inverted coords: X 350-630, Y 0-100)
-    if (touchX >= 350 && touchX <= 630 && touchY >= 0 && touchY <= 100) {
+    // Clean button zone: bottom center (inverted coords: X 350-610, Y 0-100)
+    if (touchX >= 350 && touchX <= 610 && touchY >= 0 && touchY <= 100) {
       Serial.println(">>> Clean button touched on INFO screen");
       return (ScreenState)SCREEN_CLEAN_ACTION;
+    }
+    // Radio button zone: bottom right (X 730-910, Y 0-100 in touch coords)
+    if (touchX >= 730 && touchX <= 910 && touchY >= 0 && touchY <= 100) {
+      Serial.println(">>> Radio button touched - going to Radio menu");
+      return SCREEN_RADIO_MENU;
     }
     Serial.println(">>> Touch on INFO screen - returning to main");
     return SCREEN_MAIN;
@@ -400,6 +414,62 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
   if (currentState == SCREEN_WORLDCLOCK) {
     Serial.println(">>> Touch on WORLDCLOCK screen - returning to callsign");
     return SCREEN_CALLSIGN;
+  }
+
+  // Special handling for RADIO_MENU screen - grid of 6 buttons (2x3)
+  // Buttons: startX=60, startY=70, btnW=280, btnH=130, gapX=40, gapY=20
+  // Touch Y is inverted and has offset - calibrated by testing
+  if (currentState == SCREEN_RADIO_MENU) {
+    // Column detection - buttons at X: 60-340, 380-660, 700-960
+    int col = -1;
+    if (touchX >= 60 && touchX <= 340) col = 0;
+    else if (touchX >= 380 && touchX <= 660) col = 1;
+    else if (touchX >= 700 && touchX <= 960) col = 2;
+
+    // Row detection - calibrated with real touch values (2 rows now)
+    // Row 0 (Fonetico/Q/Morse): touch Y ~236, range 200-280
+    // Row 1 (DXCC/Prop/Contests): touch Y ~140, range 105-175
+    int row = -1;
+    if (touchY >= 105 && touchY <= 175) row = 1; // Bottom row (DXCC, Prop, Contests)
+    else if (touchY >= 200 && touchY <= 280) row = 0; // Top row (Fonetico, Q, Morse)
+
+    Serial.printf(">>> Radio menu touch: X=%d, Y=%d, col=%d, row=%d\n", touchX, touchY, col, row);
+
+    if (col >= 0 && row >= 0) {
+      int option = row * 3 + col;
+      switch(option) {
+        case 0: return SCREEN_RADIO_PHONETIC;
+        case 1: return SCREEN_RADIO_QCODES;
+        case 2: return SCREEN_RADIO_MORSE;
+        case 3: return SCREEN_RADIO_DXCC;
+        case 4: return SCREEN_RADIO_PROPAGATION;
+        case 5: return SCREEN_RADIO_CONTESTS;
+      }
+    }
+    // Touch outside buttons - return to Info
+    return SCREEN_INFO;
+  }
+
+  // Special handling for DXCC pages - navigate through pages
+  if (currentState == SCREEN_RADIO_DXCC) {
+    Serial.println(">>> Touch on DXCC page 1 - going to page 2");
+    return SCREEN_RADIO_DXCC2;
+  }
+  if (currentState == SCREEN_RADIO_DXCC2) {
+    Serial.println(">>> Touch on DXCC page 2 - going to page 3");
+    return SCREEN_RADIO_DXCC3;
+  }
+  if (currentState == SCREEN_RADIO_DXCC3) {
+    Serial.println(">>> Touch on DXCC page 3 - returning to radio menu");
+    return SCREEN_RADIO_MENU;
+  }
+
+  // Special handling for RADIO screens - any touch returns to radio menu
+  if (currentState == SCREEN_RADIO_PHONETIC || currentState == SCREEN_RADIO_QCODES ||
+      currentState == SCREEN_RADIO_MORSE || currentState == SCREEN_RADIO_PROPAGATION ||
+      currentState == SCREEN_RADIO_CONTESTS) {
+    Serial.println(">>> Touch on RADIO screen - returning to radio menu");
+    return SCREEN_RADIO_MENU;
   }
 
   // Any touch on other secondary screens returns to main

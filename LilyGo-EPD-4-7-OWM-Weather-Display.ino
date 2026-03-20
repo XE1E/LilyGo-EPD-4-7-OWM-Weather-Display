@@ -175,6 +175,7 @@ void edp_update();
 #include "callsign.h"
 #include "ble_config.h"
 #include "worldclock.h"
+#include "radio_screens.h"
 
 GFXfont  currentFont;
 uint8_t *framebuffer;
@@ -390,6 +391,15 @@ void drawCurrentScreen() {
     case SCREEN_CALLSIGN:       DisplayCallsignScreen(); break;
     case SCREEN_BLE_CONFIG:     enterBLEConfigMode(); break;
     case SCREEN_WORLDCLOCK:     DisplayWorldClockScreen(); break;
+    case SCREEN_RADIO_MENU:     DisplayRadioMenuScreen(); break;
+    case SCREEN_RADIO_PHONETIC: DisplayRadioPhoneticScreen(); break;
+    case SCREEN_RADIO_QCODES:   DisplayRadioQCodesScreen(); break;
+    case SCREEN_RADIO_MORSE:    DisplayRadioMorseScreen(); break;
+    case SCREEN_RADIO_DXCC:     DisplayRadioDXCCScreen(); break;
+    case SCREEN_RADIO_DXCC2:    DisplayRadioDXCC2Screen(); break;
+    case SCREEN_RADIO_DXCC3:    DisplayRadioDXCC3Screen(); break;
+    case SCREEN_RADIO_PROPAGATION: DisplayRadioPropagationScreen(); break;
+    case SCREEN_RADIO_CONTESTS: DisplayRadioContestsScreen(); break;
   }
 }
 
@@ -2787,9 +2797,16 @@ void DisplayInfoScreen() {
   int btnX = SCREEN_WIDTH/2 - 120;
   // Draw thick border (5px) like toggle buttons
   for (int i = 0; i < 5; i++) {
-    drawRect(btnX + i, btnY + i, 280 - i*2, 45 - i*2, Black);
+    drawRect(btnX + i, btnY + i, 240 - i*2, 45 - i*2, Black);
   }
-  drawString(SCREEN_WIDTH/2 + 20, btnY + 8, TXT_CLEAN_SCREEN, CENTER);
+  drawString(SCREEN_WIDTH/2, btnY + 8, TXT_CLEAN_SCREEN, CENTER);
+
+  // Radio button at bottom right
+  int radioBtnX = 730;
+  for (int i = 0; i < 5; i++) {
+    drawRect(radioBtnX + i, btnY + i, 180 - i*2, 45 - i*2, Black);
+  }
+  drawString(radioBtnX + 90, btnY + 11, "Radio", CENTER);
 
   // Right arrow (next page - Features) - like calendar arrows
   int arrowY = 50;
