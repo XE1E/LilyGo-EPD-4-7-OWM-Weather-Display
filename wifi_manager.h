@@ -55,6 +55,7 @@ struct ConfigData {
   bool keep_screen_on_sleep; // Keep current screen when entering deep sleep
   int wakeup_hour;          // Hour to start updating (0-23)
   int sleep_hour;           // Hour to stop updating (0-23)
+  int narrative_style;      // AI narrative style (0-5)
 } config;
 
 // HTML page for configuration - Modern responsive design with tabs
@@ -427,6 +428,22 @@ const char CONFIG_PAGE[] PROGMEM = R"rawliteral(
           </div>
         </div>
 
+        <div class="card">
+          <div class="card-title">Clima Narrativo (IA)</div>
+          <div class="form-group">
+            <label>Estilo de Narrativa</label>
+            <select name="narrative_style">
+              <option value="0" %NARR_STYLE_0%>Casual - Como platica entre amigos</option>
+              <option value="1" %NARR_STYLE_1%>Formal - Como noticiero de TV</option>
+              <option value="2" %NARR_STYLE_2%>Poetico - Con metaforas literarias</option>
+              <option value="3" %NARR_STYLE_3%>Tecnico - Estilo meteorologico</option>
+              <option value="4" %NARR_STYLE_4%>Humoristico - Con toques de humor</option>
+              <option value="5" %NARR_STYLE_5%>Abuelita - Consejos de abuela</option>
+            </select>
+            <div class="hint">Estilo del texto generado por IA al tocar el icono del clima</div>
+          </div>
+        </div>
+
         <div class="divider"></div>
 
         <div class="btn-group">
@@ -619,6 +636,7 @@ void loadConfig() {
   config.keep_screen_on_sleep = preferences.getBool("keepscr", false);
   config.wakeup_hour = preferences.getInt("wakeuph", 7);
   config.sleep_hour = preferences.getInt("sleeph", 1);
+  config.narrative_style = preferences.getInt("narrstyle", 0);
   forceAPMode = preferences.getBool("forceAP", false);
 
   preferences.end();
@@ -632,6 +650,8 @@ void loadConfig() {
   if (config.wakeup_hour > 23) config.wakeup_hour = 23;
   if (config.sleep_hour < 0) config.sleep_hour = 0;
   if (config.sleep_hour > 23) config.sleep_hour = 23;
+  if (config.narrative_style < 0) config.narrative_style = 0;
+  if (config.narrative_style > 5) config.narrative_style = 5;
 }
 
 // Save configuration to preferences
@@ -660,6 +680,7 @@ void saveConfig() {
   preferences.putBool("keepscr", config.keep_screen_on_sleep);
   preferences.putInt("wakeuph", config.wakeup_hour);
   preferences.putInt("sleeph", config.sleep_hour);
+  preferences.putInt("narrstyle", config.narrative_style);
   preferences.putBool("forceAP", false);  // Clear force AP flag after save
 
   preferences.end();
@@ -725,6 +746,14 @@ String processTemplate(const char* page) {
   // Activity hours
   html.replace("%WAKEUP_HOUR%", String(config.wakeup_hour));
   html.replace("%SLEEP_HOUR%", String(config.sleep_hour));
+
+  // Narrative style
+  html.replace("%NARR_STYLE_0%", config.narrative_style == 0 ? "selected" : "");
+  html.replace("%NARR_STYLE_1%", config.narrative_style == 1 ? "selected" : "");
+  html.replace("%NARR_STYLE_2%", config.narrative_style == 2 ? "selected" : "");
+  html.replace("%NARR_STYLE_3%", config.narrative_style == 3 ? "selected" : "");
+  html.replace("%NARR_STYLE_4%", config.narrative_style == 4 ? "selected" : "");
+  html.replace("%NARR_STYLE_5%", config.narrative_style == 5 ? "selected" : "");
 
   return html;
 }
@@ -849,6 +878,7 @@ void handleSave() {
   config.keep_screen_on_sleep = webServer.arg("keep_screen") == "1";
   config.wakeup_hour = webServer.arg("wakeup_hour").toInt();
   config.sleep_hour = webServer.arg("sleep_hour").toInt();
+  config.narrative_style = webServer.arg("narrative_style").toInt();
 
   saveConfig();
 
@@ -880,6 +910,7 @@ void handleReboot() {
   config.keep_screen_on_sleep = webServer.arg("keep_screen") == "1";
   config.wakeup_hour = webServer.arg("wakeup_hour").toInt();
   config.sleep_hour = webServer.arg("sleep_hour").toInt();
+  config.narrative_style = webServer.arg("narrative_style").toInt();
 
   saveConfig();
 

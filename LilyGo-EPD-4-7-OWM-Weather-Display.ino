@@ -1,5 +1,3 @@
-#include <qrcode.h>
-
 // ESP32 Weather Display and a LilyGo EPD 4.7" Display, obtains Open Weather Map data, decodes and then displays it.
 // This software, the ideas and concepts is Copyright (c) David Bird 2021. All rights to this software are reserved.
 // Mods by XE1E
@@ -46,6 +44,7 @@
 #include <SD.h>                 // In-built - for SD card storage
 #include <time.h>               // In-built
 #include <FFat.h>               // In-built - for weather history storage (uses FATFS partition)
+#include <qrcode.h>             // QR code generation for info screen
 
 // SD Card pins for LilyGo T5 4.7" S3 (from official LilyGo-EPD47 repo)
 #define SD_CS    42
@@ -177,6 +176,7 @@ void edp_update();
 #include "worldclock.h"
 #include "radio_screens.h"
 #include "quote_screen.h"
+#include "weather_narrative.h"
 
 GFXfont  currentFont;
 uint8_t *framebuffer;
@@ -402,6 +402,7 @@ void drawCurrentScreen() {
     case SCREEN_RADIO_PROPAGATION: DisplayRadioPropagationScreen(); break;
     case SCREEN_RADIO_CONTESTS: DisplayRadioContestsScreen(); break;
     case SCREEN_QUOTE: DisplayQuoteScreen(); break;
+    case SCREEN_WEATHER_NARRATIVE: DisplayWeatherNarrativeScreen(); break;
   }
 }
 

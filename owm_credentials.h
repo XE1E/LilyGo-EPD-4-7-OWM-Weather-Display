@@ -29,6 +29,10 @@ const int wifiNetworkCount = sizeof(wifiNetworks) / sizeof(wifiNetworks[0]);
 String apikey       = "53bcaef6034d4d98b5e25b877245ae62";                     // See: https://openweathermap.org/
 const char server[] = "api.openweathermap.org";
 
+// Gemini API key for weather narrative generation (free tier)
+// Get key at: aistudio.google.com
+String gemini_apikey = "AIzaSyBLgXDlH3V2PBXXqxN0Zlk1YhMPY2TnbKs";
+
 //Set your location 
 String City             = "Ciudad de Mexico";                     // Your home city name
 String Latitude         = "19.3803";                        // Latitude of your location in decimal degrees

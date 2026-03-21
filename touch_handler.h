@@ -34,7 +34,8 @@ enum ScreenState {
   SCREEN_RADIO_DXCC3,
   SCREEN_RADIO_PROPAGATION,
   SCREEN_RADIO_CONTESTS,
-  SCREEN_QUOTE
+  SCREEN_QUOTE,
+  SCREEN_WEATHER_NARRATIVE
 };
 
 // Touch zone structure
@@ -58,6 +59,8 @@ const unsigned long CALENDAR_HOLD_MS = 800;  // Hold time to activate calendar (
 // Based on actual measurements: top-right corner = X~914, Y~281
 // Zones are evaluated in order - first match wins
 const TouchZone mainScreenZones[] = {
+  // Weather icon area - AI narrative (right-center where large icon is drawn)
+  {750, 150, 920, 230, SCREEN_WEATHER_NARRATIVE},
   // Battery/WiFi area top-right - System info (X 800-960, Y 230-330)
   {800, 230, 960, 330, SCREEN_INFO},
   // Moon/Sunrise/Sunset area (left 1/3) - Calendar (X 0-320, Y 70-150)
@@ -426,6 +429,12 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
   if (currentState == SCREEN_QUOTE) {
     Serial.println(">>> Touch on QUOTE - returning to Credits/QR");
     return SCREEN_INFO_CREDITS;
+  }
+
+  // Special handling for WEATHER_NARRATIVE screen - any touch returns to main
+  if (currentState == SCREEN_WEATHER_NARRATIVE) {
+    Serial.println(">>> Touch on WEATHER_NARRATIVE - returning to main");
+    return SCREEN_MAIN;
   }
 
   // Special handling for RADIO_MENU screen - grid of 6 buttons (2x3)

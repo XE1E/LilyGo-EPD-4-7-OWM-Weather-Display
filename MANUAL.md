@@ -388,6 +388,9 @@ const WiFiCredentials wifiNetworks[] = {
 // API OpenWeatherMap
 String apikey = "tu_api_key_aqui";
 
+// API Gemini (para Clima Narrativo - gratis en aistudio.google.com)
+String gemini_apikey = "tu_gemini_api_key_aqui";
+
 // Ubicacion
 String City      = "CDMX";
 String Latitude  = "19.4326";
@@ -464,6 +467,7 @@ La pagina web esta organizada en 4 pestanas:
 - **Al dormir**: Regresar a pantalla principal o mantener pantalla actual
 - **Hora de Inicio (despertar)**: Hora a partir de la cual actualiza el clima (0-23)
 - **Hora de Fin (dormir)**: Hora a partir de la cual deja de actualizar (0-23)
+- **Estilo de Narrativa**: Estilo del texto generado por IA (ver seccion 12.5.5)
 - **Guardar**: Solo guarda cambios
 - **Guardar y Reiniciar**: Guarda y aplica cambios
 - **Restablecer Fabrica**: Borra toda la configuracion
@@ -1587,8 +1591,8 @@ El dispositivo incluye una serie de pantallas ocultas accesibles mediante navega
 #### 12.5.1 Ruta de Acceso
 
 ```
-Pantalla Principal
-      |
+Pantalla Principal ---------> Clima Narrativo (AI)
+      |                       (tocar icono grande centro)
       v
 Info (bateria/WiFi) -----> Features 1 -----> Features 2
                                                   |
@@ -1659,6 +1663,67 @@ Caracteristicas:
 
 Navegacion:
 - Tocar cualquier zona → Regresa a Credits (QR)
+
+#### 12.5.5 Pantalla Clima Narrativo (AI)
+
+Acceso: Pantalla principal → tocar el icono grande del clima (centro de la pantalla)
+
+Genera una descripcion natural del clima usando inteligencia artificial (Gemini):
+
+| Elemento | Descripcion |
+|----------|-------------|
+| Marco | Decorativo con esquinas y bordes elegantes |
+| Titulo | "~ El Clima de Hoy ~" |
+| Ciudad | Nombre de la ubicacion configurada |
+| Narrativa | Descripcion del clima en 2-3 oraciones |
+| Footer | "Toca para volver" |
+
+##### Estilos de Narrativa
+
+El estilo se configura desde la interfaz web (Seccion Sistema → Clima Narrativo):
+
+| Estilo | Descripcion | Ejemplo |
+|--------|-------------|---------|
+| Casual | Platica entre amigos | "Hoy tenemos un dia agradable con 22 grados..." |
+| Formal | Como noticiero de TV | "Las condiciones meteorologicas actuales indican..." |
+| Poetico | Metaforas literarias | "El sol bana la ciudad con su calido abrazo..." |
+| Tecnico | Estilo meteorologico | "Sistema de alta presion. Temperatura: 22C..." |
+| Humoristico | Con toques de humor | "Ni muy frio ni muy caliente, el clima esta indeciso..." |
+| Abuelita | Consejos de abuela | "Mijo, ponte suetercito que andan los 22 grados..." |
+
+##### Como Configurar
+
+1. Accede a la interfaz web:
+   - Red AP: `WeatherStation-Setup` (pass: `weather123`) → `http://192.168.4.1`
+   - O usa la IP del dispositivo si ya esta conectado a tu red
+2. Ve a la pestana **Sistema**
+3. Busca la seccion **"Clima Narrativo (IA)"**
+4. Selecciona el estilo deseado del menu desplegable
+5. Guarda la configuracion
+
+##### Datos Utilizados
+
+La IA genera el texto usando datos reales de OpenWeatherMap (no inventa numeros):
+- Temperatura actual y sensacion termica
+- Humedad y presion atmosferica
+- Condicion del cielo (nublado, soleado, etc.)
+- Velocidad del viento
+- Pronostico de proximas horas
+
+##### Requisitos
+
+- Conexion WiFi activa (para llamar a Gemini API)
+- API key de Gemini configurada en `owm_credentials.h`
+- Obtener key gratis en: https://aistudio.google.com
+
+##### Caracteristicas
+
+- El texto se genera cada vez que entras a la pantalla
+- Persiste en deep sleep (se conserva al despertar)
+- Formato elegante con marco decorativo
+
+Navegacion:
+- Tocar cualquier zona → Regresa a pantalla principal
 
 ---
 
