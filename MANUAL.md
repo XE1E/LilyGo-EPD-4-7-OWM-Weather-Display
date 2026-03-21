@@ -388,8 +388,8 @@ const WiFiCredentials wifiNetworks[] = {
 // API OpenWeatherMap
 String apikey = "tu_api_key_aqui";
 
-// API Gemini (para Clima Narrativo - gratis en aistudio.google.com)
-String gemini_apikey = "tu_gemini_api_key_aqui";
+// API Groq (para Clima Narrativo - gratis en console.groq.com)
+String groq_apikey = "tu_groq_api_key_aqui";
 
 // Ubicacion
 String City      = "CDMX";
@@ -456,7 +456,7 @@ La pagina web esta organizada en 4 pestanas:
 
 #### Tab 3: Display
 - **Idioma**: Espanol, English, Francais
-- **Unidades**: Metrico (C, m/s, hPa) o Imperial (F, mph, inHg)
+- **Unidades**: Metrico (C, m/s, mb) o Imperial (F, mph, inHg)
 - **Timezone**: Zona horaria POSIX (ej: CST6)
 - **GMT Offset**: Offset en segundos
 - **DST Offset**: Horario de verano en segundos
@@ -688,7 +688,7 @@ Pantalla Principal (SCREEN_MAIN)
 +-----------------------------------------------+
 |                                               |
 |   [Temp]  [^]    [Presion] [>]   [Humedad][v] |
-|   25.5 C         1013 hPa        65%          |
+|   25.5 C         1013 mb         65%          |
 |   Max 28/Min 22                               |
 |                                               |
 +-----------------------------------------------+
@@ -1468,7 +1468,7 @@ timestamp,temp,humidity,pressure,wind_speed,wind_dir,rain,description
 | timestamp | Unix timestamp (segundos desde 1970) |
 | temp | Temperatura en unidades configuradas |
 | humidity | Humedad relativa (%) |
-| pressure | Presion atmosferica (hPa) |
+| pressure | Presion atmosferica (mb) |
 | wind_speed | Velocidad del viento |
 | wind_dir | Direccion del viento (grados) |
 | rain | Precipitacion (mm o in) |
@@ -1668,14 +1668,14 @@ Navegacion:
 
 Acceso: Pantalla principal → tocar el icono grande del clima (centro de la pantalla)
 
-Genera una descripcion natural del clima usando inteligencia artificial (Gemini):
+Genera una descripcion natural del clima usando inteligencia artificial (Groq/Llama):
 
 | Elemento | Descripcion |
 |----------|-------------|
 | Marco | Decorativo con esquinas y bordes elegantes |
 | Titulo | "~ El Clima de Hoy ~" |
 | Ciudad | Nombre de la ubicacion configurada |
-| Narrativa | Descripcion del clima en 2-3 oraciones |
+| Narrativa | Descripcion del clima en 4-5 oraciones |
 | Footer | "Toca para volver" |
 
 ##### Estilos de Narrativa
@@ -1684,7 +1684,7 @@ El estilo se configura desde la interfaz web (Seccion Sistema → Clima Narrativ
 
 | Estilo | Descripcion | Ejemplo |
 |--------|-------------|---------|
-| Casual | Platica entre amigos | "Hoy tenemos un dia agradable con 22 grados..." |
+| Radio | Boletin de radio, conciso | "Buenos dias radioescuchas, hoy tenemos 22 grados..." |
 | Formal | Como noticiero de TV | "Las condiciones meteorologicas actuales indican..." |
 | Poetico | Metaforas literarias | "El sol bana la ciudad con su calido abrazo..." |
 | Tecnico | Estilo meteorologico | "Sistema de alta presion. Temperatura: 22C..." |
@@ -1712,15 +1712,19 @@ La IA genera el texto usando datos reales de OpenWeatherMap (no inventa numeros)
 
 ##### Requisitos
 
-- Conexion WiFi activa (para llamar a Gemini API)
-- API key de Gemini configurada en `owm_credentials.h`
-- Obtener key gratis en: https://aistudio.google.com
+- Conexion WiFi activa (para llamar a Groq API)
+- API key de Groq configurada en `owm_credentials.h` o via web
+- Obtener key gratis en: https://console.groq.com
 
 ##### Caracteristicas
 
 - El texto se genera cada vez que entras a la pantalla
+- **Multilingue**: Genera en el idioma configurado (ES/EN/FR)
 - Persiste en deep sleep (se conserva al despertar)
 - Formato elegante con marco decorativo
+- Fuente OpenSans10B para mejor legibilidad
+- Hasta 9 lineas de ~69 caracteres cada una
+- Modelo IA: Llama 3.1 8B (rapido y gratuito)
 
 Navegacion:
 - Tocar cualquier zona → Regresa a pantalla principal

@@ -32,7 +32,7 @@ const char* TXT_HUMIDITY_PERCENT_ARR[] = { "Humedad (%)", "Humidity (%)", "Humid
 #define TXT_HUMIDITY_PERCENT String(TXT_HUMIDITY_PERCENT_ARR[currentLang])
 
 // ============== PRESSURE ==============
-const char* TXT_PRESSURE_HPA_ARR[] = { "Presion (hPa)", "Pressure (hPa)", "Pression (hPa)" };
+const char* TXT_PRESSURE_HPA_ARR[] = { "Presion (mb)", "Pressure (hPa)", "Pression (hPa)" };
 const char* TXT_PRESSURE_IN_ARR[] = { "Presion (in)", "Pressure (in)", "Pression (in)" };
 const char* TXT_PRESSURE_STEADY_ARR[] = { "Estable", "Steady", "Stable" };
 const char* TXT_PRESSURE_RISING_ARR[] = { "Subiendo", "Rising", "En hausse" };

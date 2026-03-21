@@ -1,5 +1,5 @@
 // Weather Narrative Screen
-// Generates natural language weather description using Gemini AI
+// Generates natural language weather description using Groq/Llama AI
 // Access: Main screen -> touch weather icon area
 
 #ifndef WEATHER_NARRATIVE_H
@@ -39,28 +39,50 @@ extern ConfigData config;
 #define SCREEN_WIDTH 960
 #define SCREEN_HEIGHT 540
 
-// Narrative style prompts
-const char* getNarrativeStylePrompt(int style) {
+// Language setting (from lang.h)
+extern int currentLang;
+
+// Get language name for prompt
+const char* getLanguageName() {
+  switch(currentLang) {
+    case 1: return "English";
+    case 2: return "French";
+    default: return "Spanish";
+  }
+}
+
+// Narrative style prompts - multilingual
+String getNarrativeStylePrompt(int style) {
+  String lang = getLanguageName();
+  String prompt;
+
   switch(style) {
     case 1:  // Formal
-      return "Genera un reporte meteorologico formal en espanol de 2-3 oraciones, "
-             "como lo diria un presentador de noticias profesional. ";
-    case 2:  // Poético
-      return "Genera una descripcion poetica del clima en espanol de 2-3 oraciones, "
-             "usando metaforas y lenguaje literario evocador. ";
-    case 3:  // Técnico
-      return "Genera un informe meteorologico tecnico en espanol de 2-3 oraciones, "
-             "preciso y con terminologia cientifica. ";
-    case 4:  // Humorístico
-      return "Genera una descripcion del clima en espanol de 2-3 oraciones, "
-             "con humor y comentarios graciosos sobre el tiempo. ";
-    case 5:  // Abuelita
-      return "Genera una descripcion del clima en espanol de 2-3 oraciones, "
-             "como lo diria una abuelita mexicana carinosa, con consejos practicos. ";
+      prompt = "Generate a formal weather report in " + lang + " of 4-5 sentences, "
+               "as a professional news presenter would say it. ";
+      break;
+    case 2:  // Poetic
+      prompt = "Generate a poetic weather description in " + lang + " of 4-5 sentences, "
+               "using metaphors and evocative literary language. ";
+      break;
+    case 3:  // Technical
+      prompt = "Generate a technical weather report in " + lang + " of 4-5 sentences, "
+               "precise and with scientific terminology. ";
+      break;
+    case 4:  // Humorous
+      prompt = "Generate a weather description in " + lang + " of 4-5 sentences, "
+               "with humor and funny comments about the weather. ";
+      break;
+    case 5:  // Grandma
+      prompt = "Generate a weather description in " + lang + " of 4-5 sentences, "
+               "as a caring grandmother would say it, with practical advice. ";
+      break;
     default: // Radio (0)
-      return "Genera un breve reporte meteorologico en espanol de 2-3 oraciones, "
-             "estilo boletin de radio, conciso y profesional. ";
+      prompt = "Generate a weather report in " + lang + " of 4-5 sentences, "
+               "radio bulletin style, concise and professional. ";
+      break;
   }
+  return prompt;
 }
 
 // Build weather data prompt for AI
@@ -90,11 +112,11 @@ String buildWeatherPrompt() {
     }
   }
 
-  prompt += "\nResponde SOLO con el texto de la descripcion, sin introduccion ni explicacion.";
+  prompt += "\nRespond ONLY with the description text, no introduction or explanation. Do not use phrases like 'weather bulletin' or 'weather report'.";
   return prompt;
 }
 
-// Fetch weather narrative from Gemini API
+// Fetch weather narrative from Groq API
 bool fetchWeatherNarrative() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("Narrative: WiFi not connected");
@@ -143,7 +165,7 @@ bool fetchWeatherNarrative() {
     http.end();
     // Store error message for display
     snprintf(weatherNarrative.text, sizeof(weatherNarrative.text),
-             "Error API Gemini (codigo %d). Intenta de nuevo en 1 minuto.", httpCode);
+             "Error API Groq (codigo %d). Intenta de nuevo en 1 minuto.", httpCode);
     weatherNarrative.valid = true;  // Show error message
     return false;
   }
@@ -212,8 +234,8 @@ int drawNarrativeText(int centerX, int startY, int maxWidth, int lineHeight, con
   int lines = 0;
   int currentY = startY;
 
-  setFont(OpenSans12B);
-  int charWidth = 11;  // Smaller font, adjusted width
+  setFont(OpenSans10B);
+  int charWidth = 9;  // Smaller font for more text
 
   int charsPerLine = maxWidth / charWidth;
   if (charsPerLine < 10) charsPerLine = 10;
@@ -250,7 +272,7 @@ void DisplayWeatherNarrativeScreen() {
   bool isError = strncmp(weatherNarrative.text, "Error", 5) == 0 ||
                  strncmp(weatherNarrative.text, "No se recibio", 13) == 0;
   if (!weatherNarrative.valid || isError) {
-    Serial.println("Narrative: Fetching from Gemini...");
+    Serial.println("Narrative: Fetching from Groq...");
     fetchWeatherNarrative();
   }
 
@@ -263,9 +285,13 @@ void DisplayWeatherNarrativeScreen() {
   // Draw decorative frame
   drawNarrativeFrame(frameX, frameY, frameW, frameH);
 
-  // Title with weather icon indication
+  // Title - multilingual
+  const char* titles[] = {"~ El Clima de Hoy ~", "~ Today's Weather ~", "~ Meteo du Jour ~"};
+  const char* loading[] = {"Generando descripcion...", "Generating description...", "Generation en cours..."};
+  const char* wait[] = {"Por favor espera", "Please wait", "Veuillez patienter"};
+
   setFont(OpenSans14B);
-  drawString(SCREEN_WIDTH / 2, frameY + 25, "~ El Clima de Hoy ~", CENTER);
+  drawString(SCREEN_WIDTH / 2, frameY + 25, titles[currentLang], CENTER);
 
   // Decorative line under title
   int lineY = frameY + 70;
@@ -275,20 +301,21 @@ void DisplayWeatherNarrativeScreen() {
 
   if (!weatherNarrative.valid) {
     setFont(OpenSans16B);
-    drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, "Generando descripcion...", CENTER);
+    drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, loading[currentLang], CENTER);
     setFont(OpenSans10B);
-    drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 40, "Por favor espera", CENTER);
+    drawString(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 40, wait[currentLang], CENTER);
     return;
   }
 
   // Narrative text
   int textStartY = frameY + 100;
-  int textMaxWidth = frameW - 140;  // More margin to prevent overflow
-  drawNarrativeText(SCREEN_WIDTH / 2, textStartY, textMaxWidth, 38, weatherNarrative.text, 8);
+  int textMaxWidth = frameW - 214;  // ~69 chars per line
+  drawNarrativeText(SCREEN_WIDTH / 2, textStartY, textMaxWidth, 36, weatherNarrative.text, 9);
 
-  // Footer hint
+  // Footer hint - multilingual
+  const char* footer[] = {"Toca para volver", "Touch to return", "Touchez pour revenir"};
   setFont(OpenSans10B);
-  drawString(SCREEN_WIDTH / 2, frameY + frameH, "Toca para volver", CENTER);
+  drawString(SCREEN_WIDTH / 2, frameY + frameH, footer[currentLang], CENTER);
 }
 
 #endif
