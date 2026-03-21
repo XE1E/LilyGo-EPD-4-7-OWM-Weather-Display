@@ -29,9 +29,9 @@ const int wifiNetworkCount = sizeof(wifiNetworks) / sizeof(wifiNetworks[0]);
 String apikey       = "53bcaef6034d4d98b5e25b877245ae62";                     // See: https://openweathermap.org/
 const char server[] = "api.openweathermap.org";
 
-// Gemini API key for weather narrative generation (free tier)
-// Get key at: aistudio.google.com
-String gemini_apikey = "AIzaSyBLgXDlH3V2PBXXqxN0Zlk1YhMPY2TnbKs";
+// Groq API key for weather narrative generation (free tier)
+// Get key at: console.groq.com
+String groq_apikey = "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";
 
 //Set your location 
 String City             = "Ciudad de Mexico";                     // Your home city name

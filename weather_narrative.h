@@ -25,7 +25,7 @@ extern void drawFastHLine(int16_t x0, int16_t y0, int length, uint16_t color);
 extern void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
 extern void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
 extern uint8_t *framebuffer;
-extern String gemini_apikey;
+extern String groq_apikey;
 extern String City;
 
 // Weather data structures (from main sketch)
@@ -57,9 +57,9 @@ const char* getNarrativeStylePrompt(int style) {
     case 5:  // Abuelita
       return "Genera una descripcion del clima en espanol de 2-3 oraciones, "
              "como lo diria una abuelita mexicana carinosa, con consejos practicos. ";
-    default: // Casual (0)
-      return "Genera una descripcion del clima en espanol de 2-3 oraciones, "
-             "natural y amigable, como platica entre amigos. ";
+    default: // Radio (0)
+      return "Genera un breve reporte meteorologico en espanol de 2-3 oraciones, "
+             "estilo boletin de radio, conciso y profesional. ";
   }
 }
 
@@ -78,12 +78,16 @@ String buildWeatherPrompt() {
   prompt += (Units == "M") ? " km/h\n" : " mph\n";
   prompt += "Presion: " + String(WxConditions[0].Pressure, 0) + " hPa\n";
 
-  // Add forecast info
-  if (WxForecast[0].Temperature > -100) {
-    prompt += "Pronostico proximas horas: ";
-    prompt += String(WxForecast[0].High, 0) + "/" + String(WxForecast[0].Low, 0);
-    prompt += (Units == "M") ? " C, " : " F, ";
-    prompt += String(WxForecast[0].Forecast0) + "\n";
+  // Add forecast info for next days
+  prompt += "Pronostico:\n";
+  for (int i = 0; i < 3; i++) {
+    int idx = i * 8;  // Each day has 8 readings (3-hour intervals)
+    if (WxForecast[idx].Temperature > -100) {
+      prompt += "Dia " + String(i + 1) + ": ";
+      prompt += String(WxForecast[idx].High, 0) + "/" + String(WxForecast[idx].Low, 0);
+      prompt += (Units == "M") ? " C, " : " F, ";
+      prompt += String(WxForecast[idx].Forecast0) + "\n";
+    }
   }
 
   prompt += "\nResponde SOLO con el texto de la descripcion, sin introduccion ni explicacion.";
@@ -97,33 +101,34 @@ bool fetchWeatherNarrative() {
     return false;
   }
 
-  if (gemini_apikey.length() < 10) {
-    Serial.println("Narrative: No Gemini API key configured");
+  if (groq_apikey.length() < 10) {
+    Serial.println("Narrative: No Groq API key configured");
     return false;
   }
 
-  Serial.println("Narrative: Generating with Gemini...");
+  Serial.println("Narrative: Generating with Groq...");
 
   String prompt = buildWeatherPrompt();
   Serial.println("Prompt: " + prompt);
 
-  // Build Gemini API request
+  // Build Groq API request (OpenAI-compatible format)
   WiFiClientSecure client;
   client.setInsecure();
   HTTPClient http;
   http.setTimeout(15000);
 
-  String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + gemini_apikey;
+  String url = "https://api.groq.com/openai/v1/chat/completions";
   http.begin(client, url);
   http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + groq_apikey);
 
-  // Build JSON request body
+  // Build JSON request body (OpenAI format)
   StaticJsonDocument<1024> requestDoc;
-  JsonArray contents = requestDoc.createNestedArray("contents");
-  JsonObject content = contents.createNestedObject();
-  JsonArray parts = content.createNestedArray("parts");
-  JsonObject part = parts.createNestedObject();
-  part["text"] = prompt;
+  requestDoc["model"] = "llama-3.1-8b-instant";
+  JsonArray messages = requestDoc.createNestedArray("messages");
+  JsonObject message = messages.createNestedObject();
+  message["role"] = "user";
+  message["content"] = prompt;
 
   String requestBody;
   serializeJson(requestDoc, requestBody);
@@ -160,9 +165,9 @@ bool fetchWeatherNarrative() {
     return false;
   }
 
-  // Extract text from Gemini response
-  // Format: {"candidates":[{"content":{"parts":[{"text":"..."}]}}]}
-  const char* text = doc["candidates"][0]["content"]["parts"][0]["text"];
+  // Extract text from Groq response (OpenAI format)
+  // Format: {"choices":[{"message":{"content":"..."}}]}
+  const char* text = doc["choices"][0]["message"]["content"];
 
   if (text && strlen(text) > 0) {
     strncpy(weatherNarrative.text, text, sizeof(weatherNarrative.text) - 1);
@@ -207,8 +212,8 @@ int drawNarrativeText(int centerX, int startY, int maxWidth, int lineHeight, con
   int lines = 0;
   int currentY = startY;
 
-  setFont(OpenSans14B);
-  int charWidth = 12;
+  setFont(OpenSans12B);
+  int charWidth = 11;  // Smaller font, adjusted width
 
   int charsPerLine = maxWidth / charWidth;
   if (charsPerLine < 10) charsPerLine = 10;
@@ -263,14 +268,10 @@ void DisplayWeatherNarrativeScreen() {
   drawString(SCREEN_WIDTH / 2, frameY + 25, "~ El Clima de Hoy ~", CENTER);
 
   // Decorative line under title
-  int lineY = frameY + 50;
+  int lineY = frameY + 70;
   for (int i = 0; i < 3; i++) {
     drawFastHLine(frameX + 120, lineY + i, frameW - 240, DarkGrey);
   }
-
-  // City name
-  setFont(OpenSans12B);
-  drawString(SCREEN_WIDTH / 2, frameY + 75, City, CENTER);
 
   if (!weatherNarrative.valid) {
     setFont(OpenSans16B);
@@ -281,15 +282,9 @@ void DisplayWeatherNarrativeScreen() {
   }
 
   // Narrative text
-  int textStartY = frameY + 120;
-  int textMaxWidth = frameW - 100;
+  int textStartY = frameY + 100;
+  int textMaxWidth = frameW - 140;  // More margin to prevent overflow
   drawNarrativeText(SCREEN_WIDTH / 2, textStartY, textMaxWidth, 38, weatherNarrative.text, 8);
-
-  // Bottom decorative line
-  int bottomLineY = frameY + frameH - 55;
-  for (int i = 0; i < 3; i++) {
-    drawFastHLine(frameX + 120, bottomLineY + i, frameW - 240, DarkGrey);
-  }
 
   // Footer hint
   setFont(OpenSans10B);
