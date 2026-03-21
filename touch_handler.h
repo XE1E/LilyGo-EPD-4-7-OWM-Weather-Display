@@ -34,8 +34,7 @@ enum ScreenState {
   SCREEN_RADIO_DXCC3,
   SCREEN_RADIO_PROPAGATION,
   SCREEN_RADIO_CONTESTS,
-  SCREEN_NEWS_MENU,
-  SCREEN_NEWS
+  SCREEN_QUOTE
 };
 
 // Touch zone structure
@@ -245,10 +244,6 @@ bool readTouchPoint(TouchPoint &point) {
 #define SCREEN_CALENDAR_NEXT 96
 #define SCREEN_CALENDAR_YEAR_PREV 95
 #define SCREEN_CALENDAR_YEAR_NEXT 94
-#define SCREEN_NEWS_FEED_0 90
-#define SCREEN_NEWS_FEED_1 91
-#define SCREEN_NEWS_FEED_2 92
-#define SCREEN_NEWS_FEED_3 93
 
 // Check which zone was touched
 ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
@@ -420,48 +415,17 @@ ScreenState checkTouchZone(int touchX, int touchY, ScreenState currentState) {
   if (currentState == SCREEN_WORLDCLOCK) {
     // Right half -> News Menu
     if (touchX >= 480) {
-      Serial.println(">>> Touch on WORLDCLOCK right - going to News Menu");
-      return SCREEN_NEWS_MENU;
+      Serial.println(">>> Touch on WORLDCLOCK right - going to Quote");
+      return SCREEN_QUOTE;
     }
     Serial.println(">>> Touch on WORLDCLOCK left - returning to callsign");
     return SCREEN_CALLSIGN;
   }
 
-  // Special handling for NEWS_MENU - feed selection grid (2x2)
-  // Buttons: startX=100, startY=80, btnW=400, btnH=150, gapX=60, gapY=30
-  if (currentState == SCREEN_NEWS_MENU) {
-    int col = -1, row = -1;
-    // Column detection
-    if (touchX >= 100 && touchX <= 500) col = 0;
-    else if (touchX >= 560 && touchX <= 960) col = 1;
-    // Row detection (touch Y inverted)
-    if (touchY >= 170 && touchY <= 280) row = 0;      // Top row
-    else if (touchY >= 40 && touchY <= 150) row = 1;  // Bottom row
-
-    if (col >= 0 && row >= 0) {
-      int feedIdx = row * 2 + col;
-      if (feedIdx <= 3) {
-        Serial.printf(">>> News feed selected: %d\n", feedIdx);
-        return (ScreenState)(SCREEN_NEWS_FEED_0 + feedIdx);
-      }
-    }
-    // Center bottom = exit
-    if (touchX >= 320 && touchX <= 640 && touchY <= 40) {
-      Serial.println(">>> Touch on NEWS_MENU center - returning to main");
-      return SCREEN_MAIN;
-    }
-    return SCREEN_NEWS_MENU;
-  }
-
-  // Special handling for NEWS screen - left/right navigation
-  if (currentState == SCREEN_NEWS) {
-    // Middle third = back to menu
-    if (touchX >= 320 && touchX <= 640) {
-      Serial.println(">>> Touch on NEWS center - returning to feed menu");
-      return SCREEN_NEWS_MENU;
-    }
-    // Left/right handled in main loop for pagination
-    return SCREEN_NEWS;
+  // Special handling for QUOTE screen - any touch returns to QR/Credits
+  if (currentState == SCREEN_QUOTE) {
+    Serial.println(">>> Touch on QUOTE - returning to Credits/QR");
+    return SCREEN_INFO_CREDITS;
   }
 
   // Special handling for RADIO_MENU screen - grid of 6 buttons (2x3)

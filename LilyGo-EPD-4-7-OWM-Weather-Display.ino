@@ -176,7 +176,7 @@ void edp_update();
 #include "ble_config.h"
 #include "worldclock.h"
 #include "radio_screens.h"
-#include "news_reader.h"
+#include "quote_screen.h"
 
 GFXfont  currentFont;
 uint8_t *framebuffer;
@@ -401,8 +401,7 @@ void drawCurrentScreen() {
     case SCREEN_RADIO_DXCC3:    DisplayRadioDXCC3Screen(); break;
     case SCREEN_RADIO_PROPAGATION: DisplayRadioPropagationScreen(); break;
     case SCREEN_RADIO_CONTESTS: DisplayRadioContestsScreen(); break;
-    case SCREEN_NEWS_MENU: DisplayNewsFeedMenu(); break;
-    case SCREEN_NEWS: DisplayNewsScreen(); break;
+    case SCREEN_QUOTE: DisplayQuoteScreen(); break;
   }
 }
 
@@ -507,19 +506,6 @@ void handleTouchNavigation() {
       return;
     }
 
-    // Check for news feed selection
-    if (newScreen >= SCREEN_NEWS_FEED_0 && newScreen <= SCREEN_NEWS_FEED_3) {
-      int feedIdx = newScreen - SCREEN_NEWS_FEED_0;
-      Serial.printf("News: selecting feed %d (%s)\n", feedIdx, availableFeeds[feedIdx].name);
-      currentFeedIndex = feedIdx;
-      fetchNewsRSS();
-      currentScreen = SCREEN_NEWS;
-      navigationModeActive = true;
-      navigationStartTime = millis();
-      refreshScreen();
-      return;
-    }
-
     // Check for calendar navigation actions
     if (newScreen == SCREEN_CALENDAR_PREV) {
       calendarMonthOffset--;
@@ -530,31 +516,6 @@ void handleTouchNavigation() {
     if (newScreen == SCREEN_CALENDAR_NEXT) {
       calendarMonthOffset++;
       Serial.printf("Calendar: next month (offset: %d)\n", calendarMonthOffset);
-      refreshScreen();
-      return;
-    }
-
-    // Check for news pagination (same screen returned = left/right touch)
-    if (currentScreen == SCREEN_NEWS && newScreen == SCREEN_NEWS) {
-      if (lastTouch.x < 320) {
-        // Previous page or back to menu
-        if (newsData.currentPage > 0) {
-          newsData.currentPage--;
-          Serial.printf("News: page %d/%d\n", newsData.currentPage + 1, newsData.count);
-        } else {
-          Serial.println("News: at first page - back to menu");
-          currentScreen = SCREEN_NEWS_MENU;
-        }
-      } else if (lastTouch.x > 640) {
-        // Next page or back to menu
-        if (newsData.currentPage < newsData.count - 1) {
-          newsData.currentPage++;
-          Serial.printf("News: page %d/%d\n", newsData.currentPage + 1, newsData.count);
-        } else {
-          Serial.println("News: at last page - back to menu");
-          currentScreen = SCREEN_NEWS_MENU;
-        }
-      }
       refreshScreen();
       return;
     }
@@ -608,9 +569,9 @@ void handleTouchNavigation() {
         navigationModeActive = false;
       }
 
-      // Fetch news when entering news screen
-      if (currentScreen == SCREEN_NEWS && !newsData.valid) {
-        fetchNewsRSS();
+      // Fetch new quote when entering quote screen
+      if (currentScreen == SCREEN_QUOTE) {
+        fetchQuote();
       }
 
       refreshScreen();  // Full refresh for navigation
@@ -627,10 +588,7 @@ void handleTouchNavigation() {
       return;
     }
     Serial.println("Timeout - going to sleep");
-    // News screens always reset to MAIN (requires fresh fetch)
-    if (!config.keep_screen_on_sleep ||
-        currentScreen == SCREEN_NEWS ||
-        currentScreen == SCREEN_NEWS_MENU) {
+    if (!config.keep_screen_on_sleep) {
       currentScreen = SCREEN_MAIN;
     }
     navigationModeActive = false;
@@ -2145,6 +2103,8 @@ void DrawHistoryGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min
 
     if (isWeeklyView) {
       // Weekly: only midnight lines - iterate through all hours in span
+      int dayNum = 0;  // Day counter starting from 0
+      setFont(OpenSans8B);
       for (int hoursFromStart = 1; hoursFromStart <= hours_span; hoursFromStart++) {
         int hourOfDay = (start_hour + hoursFromStart) % 24;
         if (hourOfDay == 0) {  // Midnight
@@ -2153,9 +2113,13 @@ void DrawHistoryGraph(int x_pos, int y_pos, int gwidth, int gheight, float Y1Min
             drawFastVLine(lineX - 1, y_pos, gheight, DarkGrey);
             drawFastVLine(lineX, y_pos, gheight, DarkGrey);
             drawFastVLine(lineX + 1, y_pos, gheight, DarkGrey);
+            // Day number below the line (0, 1, 2, 3...)
+            drawString(lineX, y_pos + gheight + 4, String(dayNum), CENTER);
           }
+          dayNum++;
         }
       }
+      setFont(OpenSans9B);  // Restore font
     } else {
       // 48H: lines every 6 hours
       for (int hoursFromStart = 1; hoursFromStart <= hours_span; hoursFromStart++) {

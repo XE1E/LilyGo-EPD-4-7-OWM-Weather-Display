@@ -1580,6 +1580,86 @@ La aplicacion Android se encuentra en la carpeta `android-app/` del repositorio.
 - Funciona aunque no haya red disponible
 - Configuracion desde cualquier ubicacion
 
+### 12.5 Pantallas Ocultas
+
+El dispositivo incluye una serie de pantallas ocultas accesibles mediante navegacion secuencial. Estas pantallas no son visibles en la navegacion normal y proporcionan funciones adicionales.
+
+#### 12.5.1 Ruta de Acceso
+
+```
+Pantalla Principal
+      |
+      v
+Info (bateria/WiFi) -----> Features 1 -----> Features 2
+                                                  |
+                                                  v
+                                             Help -----> Credits (QR)
+                                                              |
+                                                              v
+                                                         Callsign (XE1E)
+                                                              |
+                                                              v
+                                                         World Clock
+                                                              |
+                                                              v
+                                                    Pensamiento del Dia
+```
+
+#### 12.5.2 Pantalla Callsign
+
+Acceso: Credits (QR) → tocar zona inferior
+
+Muestra el indicativo de radioaficionado del autor:
+
+| Elemento | Descripcion |
+|----------|-------------|
+| Indicativo | XE1E en fuente extra grande |
+| Ciudad | Ciudad de Mexico |
+| Localizador | Grid locator del operador |
+
+Navegacion:
+- Tocar zona inferior → World Clock
+- Tocar otra zona → Regresa a Credits
+
+#### 12.5.3 Pantalla World Clock (Reloj Mundial)
+
+Acceso: Callsign → tocar zona inferior
+
+Muestra un mapa mundial con las zonas horarias:
+
+| Elemento | Descripcion |
+|----------|-------------|
+| Mapa | Proyeccion del mundo con zonas horarias |
+| Lineas | Divisiones de zonas UTC |
+| Visualizacion | Mapa completo en escala de grises |
+
+Navegacion:
+- Tocar lado derecho → Pensamiento del Dia
+- Tocar lado izquierdo → Regresa a Callsign
+
+#### 12.5.4 Pantalla Pensamiento del Dia
+
+Acceso: World Clock → tocar lado derecho
+
+Muestra una frase inspiracional diaria obtenida de internet:
+
+| Elemento | Descripcion |
+|----------|-------------|
+| Marco | Decorativo con esquinas y bordes elegantes |
+| Titulo | "~ Pensamiento del Dia ~" |
+| Frase | Texto de la cita en espanol |
+| Autor | Nombre del autor de la frase |
+| Footer | "Toca para volver" |
+
+Caracteristicas:
+- Frase del dia en espanol (API: frasedeldia.azurewebsites.net)
+- La misma frase se muestra todo el dia, cambia cada 24 horas
+- Persiste en deep sleep (se conserva al despertar)
+- Formato elegante con comillas decorativas
+
+Navegacion:
+- Tocar cualquier zona → Regresa a Credits (QR)
+
 ---
 
 ## 13. Apendice
