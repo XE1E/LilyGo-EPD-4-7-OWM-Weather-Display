@@ -1,0 +1,29 @@
+# Claude Code
+.claude/
+
+# Android build artifacts
+android-app/.gradle/
+android-app/.idea/
+android-app/app/build/
+android-app/build/
+android-app/gradle/
+android-app/gradlew
+android-app/gradlew.bat
+android-app/local.properties
+*.apk
+
+# Temporary images
+*.png
+*.jpg
+!moon.png
+!sunrise.png
+!sunset.png
+
+# IDE
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
