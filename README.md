@@ -182,7 +182,9 @@ See detailed manuals in three languages:
 
 ## License
 
-Based on original work by David Bird - See Licence.txt
+Based on original work by David Bird (G6EJD) - See [Licence.txt](Licence.txt)
+
+> **License notice.** This project is a modification of David Bird's code, and he retains all rights. His license ([Licence.txt](Licence.txt)) only allows **personal, non-commercial use** with credit to David Bird as the author, and forbids commercial redistribution, selling it, or using it for videos or other monetized content without his written permission. You may use this code for your own display, but **not sell it, sell it installed on a device, or use it commercially**. XE1E's modifications are offered under the same terms, and David Bird's copyright notice must be kept in all copies.
 
 ## Credits
 
